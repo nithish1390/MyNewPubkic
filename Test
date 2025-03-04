@@ -1,75 +1,23 @@
-import org.bouncycastle.openpgp.*;
-import org.bouncycastle.openpgp.operator.jcajce.*;
+import javax.crypto.Cipher;
+import java.security.*;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.Base64;
 
-import java.io.*;
-
-public class PGPDecryptor {
-
-    public static void decryptFile(String inputFile, String outputFile, String privateKeyFile, String password) throws Exception {
-        PGPSecretKeyRingCollection pgpSec = new PGPSecretKeyRingCollection(
-                PGPUtil.getDecoderStream(new FileInputStream(privateKeyFile)), new BcKeyFingerprintCalculator());
-
-        PGPPrivateKey privateKey = null;
-        PGPSecretKey secretKey = null;
-
-        for (PGPSecretKeyRing keyRing : pgpSec) {
-            for (PGPSecretKey key : keyRing) {
-                privateKey = key.extractPrivateKey(new JcePBESecretKeyDecryptorBuilder()
-                        .setProvider("BC").build(password.toCharArray()));
-                if (privateKey != null) {
-                    secretKey = key;
-                    break;
-                }
-            }
-        }
-
-        if (privateKey == null) {
-            throw new IllegalArgumentException("No private key found.");
-        }
-
-        InputStream encData = PGPUtil.getDecoderStream(new FileInputStream(inputFile));
-        PGPObjectFactory pgpF = new PGPObjectFactory(encData, new BcKeyFingerprintCalculator());
-
-        PGPEncryptedDataList encList = null;
-        Object obj;
-        while ((obj = pgpF.nextObject()) != null) {
-            if (obj instanceof PGPEncryptedDataList) {
-                encList = (PGPEncryptedDataList) obj;
-                break;
-            }
-        }
-
-        if (encList == null) {
-            throw new IllegalArgumentException("No encrypted data found.");
-        }
-
-        PGPPublicKeyEncryptedData encryptedData = null;
-        for (PGPEncryptedData encDataObj : encList) {
-            if (encDataObj instanceof PGPPublicKeyEncryptedData) {
-                encryptedData = (PGPPublicKeyEncryptedData) encDataObj;
-                break;
-            }
-        }
-
-        if (encryptedData == null) {
-            throw new IllegalArgumentException("No encrypted message found.");
-        }
-
-        InputStream clearData = encryptedData.getDataStream(
-                new JcePublicKeyDataDecryptorFactoryBuilder().setProvider("BC").build(privateKey));
-
-        try (OutputStream outputStream = new FileOutputStream(outputFile)) {
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            while ((bytesRead = clearData.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, bytesRead);
-            }
-        }
-
-        System.out.println("Message decrypted successfully.");
-    }
-
+public class RawRSADecryption {
     public static void main(String[] args) throws Exception {
-        decryptFile("encrypted.pgp", "decrypted.txt", "privateKey.asc", "password123");
+        String encryptedTextBase64 = "YourBase64EncodedCipherTextHere"; // Example base64-encrypted RSA text
+        String privateKeyBase64 = "YourBase64EncodedPrivateKeyHere"; // RSA 2048-bit private key in Base64 format
+
+        byte[] encryptedBytes = Base64.getDecoder().decode(encryptedTextBase64);
+        byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyBase64);
+
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        PrivateKey privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(privateKeyBytes));
+
+        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding"); // PKCS#1 v1.5 padding
+        cipher.init(Cipher.DECRYPT_MODE, privateKey);
+
+        byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
+        System.out.println("Decrypted Text: " + new String(decryptedBytes));
     }
 }
