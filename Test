@@ -1,0 +1,75 @@
+import org.bouncycastle.openpgp.*;
+import org.bouncycastle.openpgp.operator.jcajce.*;
+
+import java.io.*;
+
+public class PGPDecryptor {
+
+    public static void decryptFile(String inputFile, String outputFile, String privateKeyFile, String password) throws Exception {
+        PGPSecretKeyRingCollection pgpSec = new PGPSecretKeyRingCollection(
+                PGPUtil.getDecoderStream(new FileInputStream(privateKeyFile)), new BcKeyFingerprintCalculator());
+
+        PGPPrivateKey privateKey = null;
+        PGPSecretKey secretKey = null;
+
+        for (PGPSecretKeyRing keyRing : pgpSec) {
+            for (PGPSecretKey key : keyRing) {
+                privateKey = key.extractPrivateKey(new JcePBESecretKeyDecryptorBuilder()
+                        .setProvider("BC").build(password.toCharArray()));
+                if (privateKey != null) {
+                    secretKey = key;
+                    break;
+                }
+            }
+        }
+
+        if (privateKey == null) {
+            throw new IllegalArgumentException("No private key found.");
+        }
+
+        InputStream encData = PGPUtil.getDecoderStream(new FileInputStream(inputFile));
+        PGPObjectFactory pgpF = new PGPObjectFactory(encData, new BcKeyFingerprintCalculator());
+
+        PGPEncryptedDataList encList = null;
+        Object obj;
+        while ((obj = pgpF.nextObject()) != null) {
+            if (obj instanceof PGPEncryptedDataList) {
+                encList = (PGPEncryptedDataList) obj;
+                break;
+            }
+        }
+
+        if (encList == null) {
+            throw new IllegalArgumentException("No encrypted data found.");
+        }
+
+        PGPPublicKeyEncryptedData encryptedData = null;
+        for (PGPEncryptedData encDataObj : encList) {
+            if (encDataObj instanceof PGPPublicKeyEncryptedData) {
+                encryptedData = (PGPPublicKeyEncryptedData) encDataObj;
+                break;
+            }
+        }
+
+        if (encryptedData == null) {
+            throw new IllegalArgumentException("No encrypted message found.");
+        }
+
+        InputStream clearData = encryptedData.getDataStream(
+                new JcePublicKeyDataDecryptorFactoryBuilder().setProvider("BC").build(privateKey));
+
+        try (OutputStream outputStream = new FileOutputStream(outputFile)) {
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = clearData.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+        }
+
+        System.out.println("Message decrypted successfully.");
+    }
+
+    public static void main(String[] args) throws Exception {
+        decryptFile("encrypted.pgp", "decrypted.txt", "privateKey.asc", "password123");
+    }
+}
