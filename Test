@@ -1,21 +1,9 @@
-package com.example.camelyaml;
-
-import org.apache.camel.builder.RouteBuilder;
-import org.apache.camel.dsl.yaml.YamlRoutesBuilderLoader;
-import org.apache.camel.main.Main;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.Bean;
-
-@SpringBootApplication
-public class CamelYamlApplication {
-
-    public static void main(String[] args) {
-        SpringApplication.run(CamelYamlApplication.class, args);
-    }
-
-    @Bean
-    public RouteBuilder yamlRouteLoader() {
-        return new YamlRoutesBuilderLoader();
-    }
-}
+- route:
+    id: http-log-route
+    from:
+      uri: "jetty:http://0.0.0.0:8080/api/message"
+      type: rest
+    steps:
+      - log: "Received HTTP request: ${body}"
+      - set-body:
+          simple: "Message processed successfully"
