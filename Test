@@ -1,23 +1,43 @@
-import javax.crypto.Cipher;
-import java.security.*;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.Base64;
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
 
-public class RawRSADecryption {
-    public static void main(String[] args) throws Exception {
-        String encryptedTextBase64 = "YourBase64EncodedCipherTextHere"; // Example base64-encrypted RSA text
-        String privateKeyBase64 = "YourBase64EncodedPrivateKeyHere"; // RSA 2048-bit private key in Base64 format
+    <groupId>com.example</groupId>
+    <artifactId>camel-spring-boot-app</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
 
-        byte[] encryptedBytes = Base64.getDecoder().decode(encryptedTextBase64);
-        byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyBase64);
+    <name>Apache Camel Spring Boot Application</name>
 
-        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        PrivateKey privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(privateKeyBytes));
+    <properties>
+        <java.version>17</java.version>
+        <spring-boot.version>3.2.1</spring-boot.version>
+        <camel.version>4.3.0</camel.version>
+    </properties>
 
-        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding"); // PKCS#1 v1.5 padding
-        cipher.init(Cipher.DECRYPT_MODE, privateKey);
+    <dependencies>
+        <!-- Spring Boot Starter -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
 
-        byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
-        System.out.println("Decrypted Text: " + new String(decryptedBytes));
-    }
-}
+        <!-- Apache Camel Spring Boot Starter -->
+        <dependency>
+            <groupId>org.apache.camel.springboot</groupId>
+            <artifactId>camel-spring-boot-starter</artifactId>
+            <version>${camel.version}</version>
+        </dependency>
+
+        <!-- YAML DSL Support -->
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-yaml-dsl</artifactId>
+            <version>${camel.version}</version>
+        </dependency>
+
+        <!-- HTTP component for REST endpoints -->
+        <dependency>
+            <groupId>org.apache.camel.springboot</groupId>
+   
