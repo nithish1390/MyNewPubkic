@@ -1,0 +1,33 @@
+async function validateSQLWithParse() {
+    let connection;
+    try {
+        connection = await oracledb.getConnection({
+            user: "your_user",
+            password: "your_password",
+            connectString: "your_host:your_port/your_service"
+        });
+
+        const sqlContent = fs.readFileSync('queries.sql', 'utf8');
+        const statements = sqlContent.split(";").map(stmt => stmt.trim()).filter(stmt => stmt);
+
+        for (const sql of statements) {
+            const validateSQL = `DECLARE c INTEGER; BEGIN c := DBMS_SQL.OPEN_CURSOR; DBMS_SQL.PARSE(c, '${sql.replace(/'/g, "''")}', DBMS_SQL.NATIVE); DBMS_SQL.CLOSE_CURSOR(c); END;`;
+
+            try {
+                await connection.execute(validateSQL);
+                console.log("Valid SQL:", sql);
+            } catch (err) {
+                console.error("Invalid SQL:", sql);
+                console.error("Error:", err.message);
+            }
+        }
+    } catch (err) {
+        console.error("Database connection error:", err);
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
+    }
+}
+
+validateSQLWithParse();
