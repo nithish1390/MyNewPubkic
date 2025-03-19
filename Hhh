@@ -1,0 +1,23 @@
+import cx_Oracle
+
+# Database connection details
+dsn = cx_Oracle.makedsn("your_host", "your_port", service_name="your_service")
+connection = cx_Oracle.connect("your_user", "your_password", dsn)
+cursor = connection.cursor()
+
+# Read SQL statements from file
+with open("sql_queries.sql", "r") as file:
+    sql_statements = file.read().split(";")  # Assuming semicolon separates statements
+
+for sql in sql_statements:
+    sql = sql.strip()
+    if sql:
+        try:
+            cursor.execute(f"EXPLAIN PLAN FOR {sql}")  # Parse without execution
+            print("Valid SQL:", sql)
+        except cx_Oracle.DatabaseError as e:
+            print("Invalid SQL:", sql)
+            print("Error:", e)
+
+cursor.close()
+connection.close()
