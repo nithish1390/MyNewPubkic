@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# === CONFIG ===
+JIRA_USERNAME="your-email@example.com"
+JIRA_API_TOKEN="your-jira-api-token"
+JIRA_DOMAIN="your-domain.atlassian.net"
+JIRA_ISSUE_KEY="PROJECT-123"  # Replace with your JIRA issue key
+
+OPENAI_API_KEY="your-openai-api-key"
+
+# === STEP 1: Fetch JIRA Ticket Data ===
+echo "Fetching JIRA issue $JIRA_ISSUE_KEY..."
+
+jira_response=$(curl -s -u $JIRA_USERNAME:$JIRA_API_TOKEN \
+  -X GET "https://$JIRA_DOMAIN/rest/api/2/issue/$JIRA_ISSUE_KEY" \
+  -H "Content-Type: application/json")
+
+# Extract fields (you can customize this)
+jira_summary=$(echo "$jira_response" | jq -r '.fields.summary')
+jira_description=$(echo "$jira_response" | jq -r '.fields.description')
+
+# === STEP 2: Format Prompt for ChatGPT ===
+prompt="Generate a test input file based on the following JIRA ticket:\n\nSummary: $jira_summary\n\nDescription: $jira_description\n\nProvide JSON format test data."
+
+echo "Sending prompt to ChatGPT..."
+
+# === STEP 3: Send to ChatGPT API ===
+chatgpt_response=$(curl -s https://api.openai.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -d '{
+    "model": "gpt-3.5-turbo",
+    "messages": [{"role": "user", "content": "'"$prompt"'"}],
+    "temperature": 0.7
+  }')
+
+# === STEP 4: Extract Response and Save as Test File ===
+test_data=$(echo "$chatgpt_response" | jq -r '.choices[0].message.content')
+
+echo "$test_data" > test_input.json
+
+echo "✅ Test input file generated: test_input.json"
