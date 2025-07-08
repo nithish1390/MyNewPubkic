@@ -6,7 +6,7 @@ import javax.xml.transform.stream.StreamResult;
 import java.io.File;
 import java.util.*;
 
-public class BWToCamelRouteTransformer1 {
+public class BWToCamelRouteTransformer {
 
     static class Transition {
         String from, to, conditionType, xpath;
@@ -19,42 +19,68 @@ public class BWToCamelRouteTransformer1 {
         }
     }
 
-    public static void main(String[] args) throws Exception {
-        String inputXmlPath = "MainProcess.process"; // Your input XML path here
-        List<Transition> transitions = parseTransitions(inputXmlPath);
+    static String startNode = null;
+    static String endNode = null;
 
+    public static void main(String[] args) throws Exception {
+        String inputXmlPath = "MainProcess.process"; // Your input file path
+
+        // Parse input XML
+        Document inputDoc = DocumentBuilderFactory.newInstance()
+                .newDocumentBuilder().parse(new File(inputXmlPath));
+        inputDoc.getDocumentElement().normalize();
+
+        // Read <pd:startName>
+        NodeList startNameNodes = inputDoc.getElementsByTagName("pd:startName");
+        if (startNameNodes.getLength() >= 1) {
+            startNode = startNameNodes.item(0).getTextContent().trim();
+        }
+        if (startNameNodes.getLength() >= 2) {
+            endNode = startNameNodes.item(1).getTextContent().trim();
+        }
+
+        if (startNode == null || endNode == null) {
+            throw new RuntimeException("Missing <pd:startName> for start or end node.");
+        }
+
+        List<Transition> transitions = parseTransitions(inputDoc);
+
+        // Build transition map
         Map<String, List<Transition>> transitionMap = new LinkedHashMap<>();
         for (Transition t : transitions) {
             transitionMap.computeIfAbsent(t.from, k -> new ArrayList<>()).add(t);
         }
 
-        // Create output document
+        // Output document
         Document outputDoc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
         Element route = outputDoc.createElement("route");
         outputDoc.appendChild(route);
 
         Set<String> visited = new HashSet<>();
-        buildRoute("HTTP Receiver", transitionMap, outputDoc, route, visited);
+        buildRoute(startNode, transitionMap, outputDoc, route, visited);
+     //   outputDoc=removeDuplicatesInWhenBlocks(outputDoc);
+      //  System.out.println("new op:"+Document.toString);
 
-        // Output XML
+        // Write output
         Transformer transformer = TransformerFactory.newInstance().newTransformer();
         transformer.setOutputProperty(OutputKeys.INDENT, "yes");
         transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
         transformer.transform(new DOMSource(outputDoc), new StreamResult(System.out));
+
+     
     }
 
-    private static List<Transition> parseTransitions(String xmlPath) throws Exception {
+    private static List<Transition> parseTransitions(Document doc) {
         List<Transition> transitions = new ArrayList<>();
-        Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(new File(xmlPath));
         NodeList nodeList = doc.getElementsByTagName("pd:transition");
 
         for (int i = 0; i < nodeList.getLength(); i++) {
             Element el = (Element) nodeList.item(i);
-            String from = el.getElementsByTagName("pd:from").item(0).getTextContent();
-            String to = el.getElementsByTagName("pd:to").item(0).getTextContent();
-            String condType = el.getElementsByTagName("pd:conditionType").item(0).getTextContent();
+            String from = el.getElementsByTagName("pd:from").item(0).getTextContent().trim();
+            String to = el.getElementsByTagName("pd:to").item(0).getTextContent().trim();
+            String condType = el.getElementsByTagName("pd:conditionType").item(0).getTextContent().trim();
             Node xpathNode = el.getElementsByTagName("pd:xpath").item(0);
-            String xpath = xpathNode != null ? xpathNode.getTextContent() : null;
+            String xpath = xpathNode != null ? xpathNode.getTextContent().trim() : null;
 
             transitions.add(new Transition(from, to, condType, xpath));
         }
@@ -115,7 +141,7 @@ public class BWToCamelRouteTransformer1 {
         Element elem = doc.createElement(tag);
         parent.appendChild(elem);
 
-        if (!"Send_HTTP_Response".equals(tag)) {
+        if (!formatTag(next).equals(formatTag(endNode))) {
             buildRoute(next, map, doc, parent, visited);
         }
     }
@@ -123,4 +149,30 @@ public class BWToCamelRouteTransformer1 {
     private static String formatTag(String tag) {
         return tag.trim().replace(" ", "_").replace("-", "_");
     }
+
+    private static void removeDuplicatesInWhenBlocks(Document doc) {
+        NodeList whenNodes = doc.getElementsByTagName("when");
+    
+        for (int i = 0; i < whenNodes.getLength(); i++) {
+            Element when = (Element) whenNodes.item(i);
+            Set<String> seen = new HashSet<>();
+            NodeList children = when.getChildNodes();
+            List<Node> toRemove = new ArrayList<>();
+    
+            for (int j = 0; j < children.getLength(); j++) {
+                Node child = children.item(j);
+                if (child.getNodeType() == Node.ELEMENT_NODE) {
+                    String tag = child.getNodeName();
+                    if (seen.contains(tag)) {
+                        toRemove.add(child);  // Mark for removal
+                    } else if (!tag.equals("xpath")) {
+                        seen.add(tag);  // Skip <xpath>, only track route nodes
+                    }
+                }
+            }
+    
+
+        }
+    }
+    
 }
