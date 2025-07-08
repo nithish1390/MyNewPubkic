@@ -1,10 +1,117 @@
-// Read <pd:startName> and <pd:endName>
-NodeList startNameNodes = inputDoc.getElementsByTagName("pd:startName");
-if (startNameNodes.getLength() > 0) {
-    startNode = startNameNodes.item(0).getTextContent().trim();
-}
+import org.w3c.dom.*;
+import javax.xml.parsers.*;
+import javax.xml.transform.*;
+import javax.xml.transform.dom.*;
+import javax.xml.transform.stream.StreamResult;
+import java.io.*;
+import java.util.*;
 
-NodeList endNameNodes = inputDoc.getElementsByTagName("pd:endName");
-if (endNameNodes.getLength() > 0) {
-    endNode = endNameNodes.item(0).getTextContent().trim();
+public class BWToCamelRouteTransformer {
+
+    static class Transition {
+        String from, to, conditionType, xpath;
+
+        Transition(String from, String to, String conditionType, String xpath) {
+            this.from = from;
+            this.to = to;
+            this.conditionType = conditionType;
+            this.xpath = xpath;
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        String inputXmlFile = "MainProcess.process";  // Replace with your file path
+        List<Transition> transitions = parseTransitions(inputXmlFile);
+
+        Map<String, List<Transition>> transitionMap = new LinkedHashMap<>();
+        for (Transition t : transitions) {
+            transitionMap.computeIfAbsent(t.from, k -> new ArrayList<>()).add(t);
+        }
+
+        // Build flow starting from HTTP Receiver
+        Document outputDoc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
+        Element route = outputDoc.createElement("route");
+        outputDoc.appendChild(route);
+
+        Set<String> visited = new HashSet<>();
+        buildRoute("HTTP Receiver", transitionMap, outputDoc, route, visited);
+
+        // Write output XML
+        Transformer transformer = TransformerFactory.newInstance().newTransformer();
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        transformer.transform(new DOMSource(outputDoc), new StreamResult(System.out));
+    }
+
+    private static List<Transition> parseTransitions(String xmlPath) throws Exception {
+        List<Transition> transitions = new ArrayList<>();
+        Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(new File(xmlPath));
+        NodeList nodeList = doc.getElementsByTagName("pd:transition");
+
+        for (int i = 0; i < nodeList.getLength(); i++) {
+            Element el = (Element) nodeList.item(i);
+            String from = el.getElementsByTagName("pd:from").item(0).getTextContent();
+            String to = el.getElementsByTagName("pd:to").item(0).getTextContent();
+            String condType = el.getElementsByTagName("pd:conditionType").item(0).getTextContent();
+            Node xpathNode = el.getElementsByTagName("pd:xpath").item(0);
+            String xpath = xpathNode != null ? xpathNode.getTextContent() : null;
+
+            transitions.add(new Transition(from, to, condType, xpath));
+        }
+        return transitions;
+    }
+
+    private static void buildRoute(String current, Map<String, List<Transition>> transitionMap,
+                                   Document doc, Element parent, Set<String> visited) {
+        if (visited.contains(current)) return;
+        visited.add(current);
+
+        Element currentElem = doc.createElement(formatTag(current));
+        parent.appendChild(currentElem);
+
+        List<Transition> transitions = transitionMap.get(current);
+        if (transitions == null) return;
+
+        Element choice = doc.createElement("choice");
+        boolean hasChoice = false;
+
+        for (Transition t : transitions) {
+            switch (t.conditionType) {
+                case "xpath":
+                    Element when = doc.createElement("when");
+                    Element xpath = doc.createElement("xpath");
+                    xpath.setTextContent(t.xpath);
+                    when.appendChild(xpath);
+                    buildSubRoute(t.to, transitionMap, doc, when, new HashSet<>(visited));
+                    choice.appendChild(when);
+                    hasChoice = true;
+                    break;
+
+                case "otherwise":
+                    Element otherwise = doc.createElement("otherwise");
+                    buildSubRoute(t.to, transitionMap, doc, otherwise, new HashSet<>(visited));
+                    choice.appendChild(otherwise);
+                    hasChoice = true;
+                    break;
+
+                case "always":
+                    buildSubRoute(t.to, transitionMap, doc, parent, new HashSet<>(visited));
+                    break;
+            }
+        }
+
+        if (hasChoice) parent.appendChild(choice);
+    }
+
+    private static void buildSubRoute(String next, Map<String, List<Transition>> map,
+                                      Document doc, Element parent, Set<String> visited) {
+        Element elem = doc.createElement(formatTag(next));
+        parent.appendChild(elem);
+        if (!"Send HTTP Response".equals(next)) {
+            buildRoute(next, map, doc, parent, visited);
+        }
+    }
+
+    private static String formatTag(String tag) {
+        return tag.trim().replace(" ", "_").replace("-", "_");
+    }
 }
