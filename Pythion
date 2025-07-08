@@ -1,129 +1,126 @@
-import xml.etree.ElementTree as ET
-from collections import defaultdict
+import org.w3c.dom.*;
+import javax.xml.parsers.*;
+import javax.xml.transform.*;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import java.io.File;
+import java.util.*;
 
-BW_NS = {'pd': 'http://xmlns.tibco.com/bw/process/2003'}
+public class BWToCamelRouteTransformer1 {
 
-def parse_bw_process(file_path):
-    tree = ET.parse(file_path)
-    root = tree.getroot()
+    static class Transition {
+        String from, to, conditionType, xpath;
 
-    activities = {}
-    transitions = []
-    starter = root.find('pd:starter', BW_NS).attrib['name']
-    end = root.findtext('pd:endName', default='End', namespaces=BW_NS)
+        Transition(String from, String to, String conditionType, String xpath) {
+            this.from = from;
+            this.to = to;
+            this.conditionType = conditionType;
+            this.xpath = xpath;
+        }
+    }
 
-    for act in root.findall('.//pd:activity', BW_NS):
-        name = act.attrib['name']
-        act_type = act.find('pd:type', BW_NS).text
-        activities[name] = act_type
+    public static void main(String[] args) throws Exception {
+        String inputXmlPath = "MainProcess.process"; // Your input XML path here
+        List<Transition> transitions = parseTransitions(inputXmlPath);
 
-    for group in root.findall('.//pd:group', BW_NS):
-        group_name = group.attrib['name']
-        group_type = group.find('pd:type', BW_NS).text
-        activities[group_name] = group_type
-        for act in group.findall('.//pd:activity', BW_NS):
-            name = act.attrib['name']
-            act_type = act.find('pd:type', BW_NS).text
-            activities[name] = act_type
-        for t in group.findall('.//pd:transition', BW_NS):
-            transitions.append({
-                'from': t.find('pd:from', BW_NS).text,
-                'to': t.find('pd:to', BW_NS).text,
-                'condition': t.findtext('pd:conditionType', 'always', BW_NS),
-                'xpath': t.findtext('pd:xpath', '', BW_NS)
-            })
+        Map<String, List<Transition>> transitionMap = new LinkedHashMap<>();
+        for (Transition t : transitions) {
+            transitionMap.computeIfAbsent(t.from, k -> new ArrayList<>()).add(t);
+        }
 
-    for t in root.findall('pd:transition', BW_NS):
-        transitions.append({
-            'from': t.find('pd:from', BW_NS).text,
-            'to': t.find('pd:to', BW_NS).text,
-            'condition': t.findtext('pd:conditionType', 'always', BW_NS),
-            'xpath': t.findtext('pd:xpath', '', BW_NS)
-        })
+        // Create output document
+        Document outputDoc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
+        Element route = outputDoc.createElement("route");
+        outputDoc.appendChild(route);
 
-    return starter, end, activities, transitions
+        Set<String> visited = new HashSet<>();
+        buildRoute("HTTP Receiver", transitionMap, outputDoc, route, visited);
 
-def group_transitions(transitions):
-    grouped = defaultdict(list)
-    for t in transitions:
-        grouped[t['from']].append(t)
-    return grouped
+        // Output XML
+        Transformer transformer = TransformerFactory.newInstance().newTransformer();
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+        transformer.transform(new DOMSource(outputDoc), new StreamResult(System.out));
+    }
 
-def map_activity_to_camel_step(name, act_type):
-    tag = name.replace(" ", "_")
-    if "HTTPResponseActivity" in act_type:
-        return f'<setBody><constant>FIN DEL PROCESAMIENTO</constant></setBody>'
-    elif "FileWriteActivity" in act_type:
-        return f'<to uri="file:output/?fileName={tag}.out" />'
-    elif "NullActivity" in act_type:
-        return f'<log message="Null activity: {name}" />'
-    elif "LoopGroup" in act_type:
-        return f'<log message="Loop start: {name}" />'
-    else:
-        return f'<log message="Activity: {name} ({act_type})" />'
+    private static List<Transition> parseTransitions(String xmlPath) throws Exception {
+        List<Transition> transitions = new ArrayList<>();
+        Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(new File(xmlPath));
+        NodeList nodeList = doc.getElementsByTagName("pd:transition");
 
-def generate_route(start, end, activities, transitions):
-    transition_map = group_transitions(transitions)
-    visited = set()
-    indent = "  "
+        for (int i = 0; i < nodeList.getLength(); i++) {
+            Element el = (Element) nodeList.item(i);
+            String from = el.getElementsByTagName("pd:from").item(0).getTextContent();
+            String to = el.getElementsByTagName("pd:to").item(0).getTextContent();
+            String condType = el.getElementsByTagName("pd:conditionType").item(0).getTextContent();
+            Node xpathNode = el.getElementsByTagName("pd:xpath").item(0);
+            String xpath = xpathNode != null ? xpathNode.getTextContent() : null;
 
-    def dfs(node, depth=2):
-        if node in visited:
-            return []
-        visited.add(node)
-        steps = []
+            transitions.add(new Transition(from, to, condType, xpath));
+        }
+        return transitions;
+    }
 
-        # Add this activity
-        if node in activities:
-            steps.append(indent * depth + map_activity_to_camel_step(node, activities[node]))
+    private static void buildRoute(String current, Map<String, List<Transition>> transitionMap,
+                                   Document doc, Element parent, Set<String> visited) {
+        if (visited.contains(current)) return;
+        visited.add(current);
 
-        children = transition_map.get(node, [])
-        if not children:
-            return steps
+        Element currentElem = doc.createElement(formatTag(current));
+        parent.appendChild(currentElem);
 
-        # Handle branching with <choice>
-        if len(children) > 1 or any(c['condition'] != 'always' for c in children):
-            steps.append(indent * depth + "<choice>")
-            for t in children:
-                to = t['to']
-                cond = t['condition']
-                step_block = dfs(to, depth + 2)
-                if cond == 'xpath':
-                    steps.append(indent * (depth + 1) + "<when>")
-                    steps.append(indent * (depth + 2) + f"<xpath>{t['xpath']}</xpath>")
-                    steps.extend(step_block)
-                    steps.append(indent * (depth + 1) + "</when>")
-                elif cond == 'otherwise':
-                    steps.append(indent * (depth + 1) + "<otherwise>")
-                    steps.extend(step_block)
-                    steps.append(indent * (depth + 1) + "</otherwise>")
-                elif cond == 'always':
-                    steps.append(indent * (depth + 1) + "<when>")
-                    steps.append(indent * (depth + 2) + "<constant>true</constant>")
-                    steps.extend(step_block)
-                    steps.append(indent * (depth + 1) + "</when>")
-            steps.append(indent * depth + "</choice>")
-        else:
-            # Single unconditional child
-            to = children[0]['to']
-            steps.extend(dfs(to, depth))
+        List<Transition> transitions = transitionMap.get(current);
+        if (transitions == null) return;
 
-        return steps
+        Element choice = doc.createElement("choice");
+        boolean hasChoice = false;
 
-    route = ['<routes xmlns="http://camel.apache.org/schema/spring">']
-    route.append(f'{indent}<route id="autoGeneratedRoute">')
-    route.append(f'{indent*2}<from uri="direct:{start.replace(" ", "_")}" />')
-    route.extend(dfs(start))
-    route.append(f'{indent}</route>')
-    route.append('</routes>')
-    return "\n".join(route)
+        for (Transition t : transitions) {
+            Set<String> pathTracker = new HashSet<>();
+            pathTracker.add(current);
 
-def convert_to_camel(file_path, output_path="camel_route.xml"):
-    start, end, activities, transitions = parse_bw_process(file_path)
-    xml = generate_route(start, end, activities, transitions)
-    with open(output_path, "w") as f:
-        f.write(xml)
-    print(f"✅ Camel route generated: {output_path}")
+            switch (t.conditionType) {
+                case "xpath":
+                    Element when = doc.createElement("when");
+                    Element xpath = doc.createElement("xpath");
+                    xpath.setTextContent(t.xpath);
+                    when.appendChild(xpath);
+                    buildSubRoute(t.to, transitionMap, doc, when, pathTracker);
+                    choice.appendChild(when);
+                    hasChoice = true;
+                    break;
 
-# Execute for provided BW process file
-convert_to_camel("MainProcess.process.txt")
+                case "otherwise":
+                    Element otherwise = doc.createElement("otherwise");
+                    buildSubRoute(t.to, transitionMap, doc, otherwise, pathTracker);
+                    choice.appendChild(otherwise);
+                    hasChoice = true;
+                    break;
+
+                case "always":
+                    buildSubRoute(t.to, transitionMap, doc, parent, pathTracker);
+                    break;
+            }
+        }
+
+        if (hasChoice) parent.appendChild(choice);
+    }
+
+    private static void buildSubRoute(String next, Map<String, List<Transition>> map,
+                                      Document doc, Element parent, Set<String> visited) {
+        String tag = formatTag(next);
+        if (visited.contains(tag)) return;
+
+        visited.add(tag);
+        Element elem = doc.createElement(tag);
+        parent.appendChild(elem);
+
+        if (!"Send_HTTP_Response".equals(tag)) {
+            buildRoute(next, map, doc, parent, visited);
+        }
+    }
+
+    private static String formatTag(String tag) {
+        return tag.trim().replace(" ", "_").replace("-", "_");
+    }
+}
