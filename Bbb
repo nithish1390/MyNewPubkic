@@ -1,14 +1,126 @@
-const fs = require('fs');
-const sqlFormatter = require('sql-formatter');
+import org.w3c.dom.*;
+import javax.xml.parsers.*;
+import javax.xml.transform.*;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import java.io.File;
+import java.util.*;
 
-const sqlContent = fs.readFileSync('queries.sql', 'utf8');
-const statements = sqlContent.split(";").map(stmt => stmt.trim()).filter(stmt => stmt);
+public class BWToCamelRouteTransformer1 {
 
-for (const sql of statements) {
-    try {
-        sqlFormatter.format(sql); // Attempt to format (basic syntax validation)
-        console.log("Valid SQL format:", sql);
-    } catch (err) {
-        console.error("Invalid SQL format:", sql);
+    static class Transition {
+        String from, to, conditionType, xpath;
+
+        Transition(String from, String to, String conditionType, String xpath) {
+            this.from = from;
+            this.to = to;
+            this.conditionType = conditionType;
+            this.xpath = xpath;
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        String inputXmlPath = "MainProcess.process"; // Your input XML path here
+        List<Transition> transitions = parseTransitions(inputXmlPath);
+
+        Map<String, List<Transition>> transitionMap = new LinkedHashMap<>();
+        for (Transition t : transitions) {
+            transitionMap.computeIfAbsent(t.from, k -> new ArrayList<>()).add(t);
+        }
+
+        // Create output document
+        Document outputDoc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
+        Element route = outputDoc.createElement("route");
+        outputDoc.appendChild(route);
+
+        Set<String> visited = new HashSet<>();
+        buildRoute("HTTP Receiver", transitionMap, outputDoc, route, visited);
+
+        // Output XML
+        Transformer transformer = TransformerFactory.newInstance().newTransformer();
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+        transformer.transform(new DOMSource(outputDoc), new StreamResult(System.out));
+    }
+
+    private static List<Transition> parseTransitions(String xmlPath) throws Exception {
+        List<Transition> transitions = new ArrayList<>();
+        Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(new File(xmlPath));
+        NodeList nodeList = doc.getElementsByTagName("pd:transition");
+
+        for (int i = 0; i < nodeList.getLength(); i++) {
+            Element el = (Element) nodeList.item(i);
+            String from = el.getElementsByTagName("pd:from").item(0).getTextContent();
+            String to = el.getElementsByTagName("pd:to").item(0).getTextContent();
+            String condType = el.getElementsByTagName("pd:conditionType").item(0).getTextContent();
+            Node xpathNode = el.getElementsByTagName("pd:xpath").item(0);
+            String xpath = xpathNode != null ? xpathNode.getTextContent() : null;
+
+            transitions.add(new Transition(from, to, condType, xpath));
+        }
+        return transitions;
+    }
+
+    private static void buildRoute(String current, Map<String, List<Transition>> transitionMap,
+                                   Document doc, Element parent, Set<String> visited) {
+        if (visited.contains(current)) return;
+        visited.add(current);
+
+        Element currentElem = doc.createElement(formatTag(current));
+        parent.appendChild(currentElem);
+
+        List<Transition> transitions = transitionMap.get(current);
+        if (transitions == null) return;
+
+        Element choice = doc.createElement("choice");
+        boolean hasChoice = false;
+
+        for (Transition t : transitions) {
+            Set<String> pathTracker = new HashSet<>();
+            pathTracker.add(current);
+
+            switch (t.conditionType) {
+                case "xpath":
+                    Element when = doc.createElement("when");
+                    Element xpath = doc.createElement("xpath");
+                    xpath.setTextContent(t.xpath);
+                    when.appendChild(xpath);
+                    buildSubRoute(t.to, transitionMap, doc, when, pathTracker);
+                    choice.appendChild(when);
+                    hasChoice = true;
+                    break;
+
+                case "otherwise":
+                    Element otherwise = doc.createElement("otherwise");
+                    buildSubRoute(t.to, transitionMap, doc, otherwise, pathTracker);
+                    choice.appendChild(otherwise);
+                    hasChoice = true;
+                    break;
+
+                case "always":
+                    buildSubRoute(t.to, transitionMap, doc, parent, pathTracker);
+                    break;
+            }
+        }
+
+        if (hasChoice) parent.appendChild(choice);
+    }
+
+    private static void buildSubRoute(String next, Map<String, List<Transition>> map,
+                                      Document doc, Element parent, Set<String> visited) {
+        String tag = formatTag(next);
+        if (visited.contains(tag)) return;
+
+        visited.add(tag);
+        Element elem = doc.createElement(tag);
+        parent.appendChild(elem);
+
+        if (!"Send_HTTP_Response".equals(tag)) {
+            buildRoute(next, map, doc, parent, visited);
+        }
+    }
+
+    private static String formatTag(String tag) {
+        return tag.trim().replace(" ", "_").replace("-", "_");
     }
 }
