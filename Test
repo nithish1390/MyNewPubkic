@@ -1,9 +1,36 @@
-- route:
-    id: http-log-route
-    from:
-      uri: "jetty:http://0.0.0.0:8080/api/message"
-      type: rest
-    steps:
-      - log: "Received HTTP request: ${body}"
-      - set-body:
-          simple: "Message processed successfully"
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:pd="http://xmlns.tibco.com/bw/process/2003"
+           targetNamespace="http://xmlns.tibco.com/bw/process/2003"
+           elementFormDefault="qualified">
+
+  <xs:element name="ProcessDefinition">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="starter" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="activity" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="inputBindings" type="xs:string" minOccurs="0"/>
+              <xs:element name="returnBindings" type="xs:string" minOccurs="0"/>
+            </xs:sequence>
+            <xs:attribute name="name" type="xs:string" use="required"/>
+            <xs:attribute name="type" type="xs:string" use="required"/>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="transition" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="from" type="xs:string"/>
+              <xs:element name="to" type="xs:string"/>
+              <xs:element name="xpath" type="xs:string" minOccurs="0"/>
+              <xs:element name="conditionType" type="xs:string" minOccurs="0"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="name" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>
