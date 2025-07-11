@@ -1,46 +1,242 @@
-#!/bin/bash
+import org.w3c.dom.*;
+import javax.xml.parsers.*;
+import javax.xml.transform.*;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import java.io.*;
+import java.util.*;
 
-ALLOWED_PATHS_FILE="allowed_paths.txt"
-COMMANDS_FILE="commands.txt"
+public class BWToCamelFinalClean {
 
-# Load allowed paths into an array
-mapfile -t ALLOWED_PATHS < "$ALLOWED_PATHS_FILE"
+    static class Transition {
+        String from, to, conditionType, xpath;
 
-# Helper function to check if a path is allowed
-is_allowed() {
-    local path="$1"
-    for allowed in "${ALLOWED_PATHS[@]}"; do
-        if [[ "$allowed" == "$path" ]]; then
-            return 0
-        fi
-    done
-    return 1
+        Transition(String from, String to, String conditionType, String xpath) {
+            this.from = normalize(from);
+            this.to = normalize(to);
+            this.conditionType = conditionType != null ? conditionType.trim() : "always";
+            this.xpath = xpath != null ? xpath.trim() : "";
+        }
+    }
+
+    static Map<String, List<Transition>> graph = new HashMap<>();
+    static Document camelDoc;
+    static Set<String> visited = new HashSet<>();
+    static Set<String> mergedNodes = new HashSet<>();
+
+    public static void main(String[] args) throws Exception {
+        File file = new File("MainProcess.process"); // Update path if needed
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        Document doc = builder.parse(file);
+        doc.getDocumentElement().normalize();
+
+        String PD_NS = "http://xmlns.tibco.com/bw/process/2003";
+
+        // Get start node
+        String startNode = null;
+        NodeList startNames = doc.getElementsByTagNameNS(PD_NS, "startName");
+        if (startNames.getLength() > 0) {
+            startNode = normalize(startNames.item(0).getTextContent());
+        }
+
+        if (startNode == null) {
+            System.err.println("No <pd:startName> found.");
+            return;
+        }
+
+        // Parse transitions
+        NodeList transitions = doc.getElementsByTagNameNS(PD_NS, "transition");
+        for (int i = 0; i < transitions.getLength(); i++) {
+            Element t = (Element) transitions.item(i);
+            String from = getText(t, PD_NS, "from");
+            String to = getText(t, PD_NS, "to");
+            String type = getText(t, PD_NS, "conditionType");
+            String xpath = getText(t, PD_NS, "xpath");
+            if (from != null && to != null) {
+                Transition tr = new Transition(from, to, type, xpath);
+                graph.computeIfAbsent(tr.from, k -> new ArrayList<>()).add(tr);
+            }
+        }
+
+        // Create Camel route document
+        camelDoc = builder.newDocument();
+        Element route = camelDoc.createElement("route");
+        route.setAttribute("id", "bw-to-camel-route");
+        camelDoc.appendChild(route);
+
+        Element from = camelDoc.createElement("from");
+        from.setAttribute("uri", "direct:start");
+        route.appendChild(from);
+
+        visited.clear();
+        buildFlow(startNode, route);
+
+        // Post-process: remove duplicate <to> inside <choice>
+NodeList routeChildren = camelDoc.getDocumentElement().getChildNodes();
+Set<String> finalTos = new HashSet<>();
+
+for (int i = 0; i < routeChildren.getLength(); i++) {
+    Node n = routeChildren.item(i);
+    if (n instanceof Element && ((Element) n).getTagName().equals("choice")) {
+        Element choice = (Element) n;
+
+        // Find all <to uri="..."> that appear AFTER this <choice>
+        for (int j = i + 1; j < routeChildren.getLength(); j++) {
+            Node after = routeChildren.item(j);
+            if (after instanceof Element && ((Element) after).getTagName().equals("to")) {
+                finalTos.add(((Element) after).getAttribute("uri"));
+            }
+        }
+
+        // For each <when>/<otherwise>, remove <to> if it duplicates
+        NodeList branches = choice.getChildNodes();
+        for (int b = 0; b < branches.getLength(); b++) {
+            Node branch = branches.item(b);
+            if (branch instanceof Element) {
+                NodeList branchChildren = branch.getChildNodes();
+                List<Node> toRemove = new ArrayList<>();
+                for (int c = 0; c < branchChildren.getLength(); c++) {
+                    Node child = branchChildren.item(c);
+                    if (child instanceof Element && ((Element) child).getTagName().equals("to")) {
+                        String uri = ((Element) child).getAttribute("uri");
+                        if (finalTos.contains(uri)) {
+                            toRemove.add(child);
+                        }
+                    }
+                }
+                // Remove marked nodes
+                for (Node rm : toRemove) {
+                    branch.removeChild(rm);
+                }
+            }
+        }
+    }
 }
 
-# Go through each line in commands.txt
-while IFS= read -r cmd; do
-    # Skip empty or commented lines
-    [[ -z "$cmd" || "$cmd" =~ ^# ]] && continue
 
-    echo "Checking command: $cmd"
+        // Output to console
+        Transformer transformer = TransformerFactory.newInstance().newTransformer();
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+        transformer.transform(new DOMSource(camelDoc), new StreamResult(System.out));
+    }
 
-    # Extract all absolute paths (starting with /)
-    paths_in_cmd=($(grep -oP '/[^ \"\']+' <<< "$cmd"))
+    static String getText(Element parent, String ns, String tag) {
+        NodeList list = parent.getElementsByTagNameNS(ns, tag);
+        return (list.getLength() > 0) ? list.item(0).getTextContent() : null;
+    }
 
-    all_allowed=true
-    for path in "${paths_in_cmd[@]}"; do
-        if ! is_allowed "$path"; then
-            echo "❌ Skipping command: '$cmd' — disallowed path: $path"
-            all_allowed=false
-            break
-        fi
-    done
+    static String normalize(String s) {
+        return s.trim().replaceAll("\\s+", "_");
+    }
 
-    # Execute if all paths are allowed
-    if $all_allowed; then
-        echo "✅ Executing: $cmd"
-        eval "$cmd"
-    fi
+    static void buildFlow(String current, Element parent) {
+        if (visited.contains(current)) return;
+        visited.add(current);
 
-    echo "---------------------------------------"
-done < "$COMMANDS_FILE"
+        if ("End".equalsIgnoreCase(current)) {
+            Element log = camelDoc.createElement("log");
+            log.setAttribute("message", "Flow ended");
+            parent.appendChild(log);
+            return;
+        }
+
+        Element to = camelDoc.createElement("to");
+        to.setAttribute("uri", "bean:" + current);
+        parent.appendChild(to);
+
+        List<Transition> transitions = graph.getOrDefault(current, Collections.emptyList());
+
+        if (transitions.size() == 1 && !"otherwise".equalsIgnoreCase(transitions.get(0).conditionType)) {
+            buildFlow(transitions.get(0).to, parent);
+        } else if (!transitions.isEmpty()) {
+            Element choice = camelDoc.createElement("choice");
+            parent.appendChild(choice);
+
+            Map<String, List<String>> branchPaths = new LinkedHashMap<>();
+
+            for (Transition t : transitions) {
+                Element branchElem;
+                boolean isOtherwise = "otherwise".equalsIgnoreCase(t.conditionType);
+
+                if (isOtherwise) {
+                    branchElem = camelDoc.createElement("otherwise");
+                } else {
+                    branchElem = camelDoc.createElement("when");
+                    Element xpath = camelDoc.createElement("xpath");
+                    xpath.setTextContent(t.xpath.isEmpty() ? "true()" : t.xpath);
+                    branchElem.appendChild(xpath);
+                }
+
+                choice.appendChild(branchElem);
+
+                List<String> path = new ArrayList<>();
+                walkBranch(t.to, branchElem, path);
+                branchPaths.put(t.to, path);
+
+                // Fallback log for empty <otherwise>
+                if (isOtherwise && branchElem.getChildNodes().getLength() <= 1) {
+                    Element log = camelDoc.createElement("log");
+                    log.setAttribute("message", "Fallback - no specific condition met");
+                    branchElem.appendChild(log);
+                }
+            }
+
+            // Detect common tail
+            String common = findCommonTail(branchPaths.values());
+            if (common != null && !visited.contains(common)) {
+                buildFlow(common, parent);
+            }
+        }
+    }
+
+    static void walkBranch(String current, Element parent, List<String> path) {
+        while (current != null) {
+            // ✅ Skip merged or End nodes
+            if (mergedNodes.contains(current) || "End".equalsIgnoreCase(current)) {
+                path.add(current);
+                break;
+            }
+
+            Element to = camelDoc.createElement("to");
+            to.setAttribute("uri", "bean:" + current);
+            parent.appendChild(to);
+            path.add(current);
+
+            List<Transition> transitions = graph.getOrDefault(current, Collections.emptyList());
+            if (transitions.size() == 1 && !"otherwise".equalsIgnoreCase(transitions.get(0).conditionType)) {
+                current = transitions.get(0).to;
+            } else {
+                break;
+            }
+        }
+
+        // ❌ Do not emit <to> or <log> for End or merged nodes here
+    }
+
+    static String findCommonTail(Collection<List<String>> paths) {
+        if (paths.isEmpty()) return null;
+        Iterator<List<String>> it = paths.iterator();
+        List<String> base = new ArrayList<>(it.next());
+
+        while (it.hasNext()) {
+            List<String> next = it.next();
+            int min = Math.min(base.size(), next.size());
+            int i = 0;
+            while (i < min && base.get(base.size() - 1 - i).equals(next.get(next.size() - 1 - i))) {
+                i++;
+            }
+            if (i == 0) return null;
+            base = base.subList(base.size() - i, base.size());
+        }
+
+        if (!base.isEmpty()) {
+            mergedNodes.addAll(base);
+            return base.get(0);
+        }
+
+        return null;
+    }
+}
