@@ -1,117 +1,350 @@
+package com.example.demo;
+
 import org.w3c.dom.*;
 import javax.xml.parsers.*;
 import javax.xml.transform.*;
-import javax.xml.transform.dom.*;
+import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.*;
 import java.util.*;
 
-public class BWToCamelRouteTransformer {
+public class Test {
 
     static class Transition {
         String from, to, conditionType, xpath;
 
         Transition(String from, String to, String conditionType, String xpath) {
-            this.from = from;
-            this.to = to;
-            this.conditionType = conditionType;
-            this.xpath = xpath;
+            this.from = normalize(from);
+            this.to = normalize(to);
+            this.conditionType = conditionType != null ? conditionType.trim() : "always";
+            this.xpath = xpath != null ? xpath.trim() : "";
         }
     }
+
+    static Map<String, List<Transition>> graph = new HashMap<>();
+    static Map<String, String> activityToType = new HashMap<>();
+    static Document camelDoc;
+    static Set<String> visited = new HashSet<>();
+    static Set<String> mergedNodes = new HashSet<>();
 
     public static void main(String[] args) throws Exception {
-        String inputXmlFile = "MainProcess.process";  // Replace with your file path
-        List<Transition> transitions = parseTransitions(inputXmlFile);
+        File file = new File("/Users/Nithish/MainProcess.process");
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        Document doc = builder.parse(file);
+        doc.getDocumentElement().normalize();
 
-        Map<String, List<Transition>> transitionMap = new LinkedHashMap<>();
-        for (Transition t : transitions) {
-            transitionMap.computeIfAbsent(t.from, k -> new ArrayList<>()).add(t);
+        String PD_NS = "http://xmlns.tibco.com/bw/process/2003";
+
+        String startNode = null;
+        NodeList startNames = doc.getElementsByTagNameNS(PD_NS, "startName");
+        if (startNames.getLength() > 0) {
+            startNode = normalize(startNames.item(0).getTextContent());
+        }
+        if (startNode == null) {
+            System.err.println("No <pd:startName> found.");
+            return;
         }
 
-        // Build flow starting from HTTP Receiver
-        Document outputDoc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
-        Element route = outputDoc.createElement("route");
-        outputDoc.appendChild(route);
 
-        Set<String> visited = new HashSet<>();
-        buildRoute("HTTP Receiver", transitionMap, outputDoc, route, visited);
 
-        // Write output XML
-        Transformer transformer = TransformerFactory.newInstance().newTransformer();
-        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-        transformer.transform(new DOMSource(outputDoc), new StreamResult(System.out));
-    }
+        NodeList activityNodes = doc.getElementsByTagNameNS("*", "activity");
+        NodeList starterNodes = doc.getElementsByTagNameNS("*", "starter");
 
-    private static List<Transition> parseTransitions(String xmlPath) throws Exception {
-        List<Transition> transitions = new ArrayList<>();
-        Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(new File(xmlPath));
-        NodeList nodeList = doc.getElementsByTagName("pd:transition");
+        List<Element> combinedList = new ArrayList<>();
 
-        for (int i = 0; i < nodeList.getLength(); i++) {
-            Element el = (Element) nodeList.item(i);
-            String from = el.getElementsByTagName("pd:from").item(0).getTextContent();
-            String to = el.getElementsByTagName("pd:to").item(0).getTextContent();
-            String condType = el.getElementsByTagName("pd:conditionType").item(0).getTextContent();
-            Node xpathNode = el.getElementsByTagName("pd:xpath").item(0);
-            String xpath = xpathNode != null ? xpathNode.getTextContent() : null;
-
-            transitions.add(new Transition(from, to, condType, xpath));
+// Add all activity elements
+        for (int i = 0; i < activityNodes.getLength(); i++) {
+            combinedList.add((Element) activityNodes.item(i));
         }
-        return transitions;
-    }
 
-    private static void buildRoute(String current, Map<String, List<Transition>> transitionMap,
-                                   Document doc, Element parent, Set<String> visited) {
-        if (visited.contains(current)) return;
-        visited.add(current);
+// Add all starter elements
+        for (int i = 0; i < starterNodes.getLength(); i++) {
+            combinedList.add((Element) starterNodes.item(i));
+        }
 
-        Element currentElem = doc.createElement(formatTag(current));
-        parent.appendChild(currentElem);
+        for (Element activity : combinedList) {
+            String name = activity.getAttribute("name").trim();
 
-        List<Transition> transitions = transitionMap.get(current);
-        if (transitions == null) return;
-
-        Element choice = doc.createElement("choice");
-        boolean hasChoice = false;
-
-        for (Transition t : transitions) {
-            switch (t.conditionType) {
-                case "xpath":
-                    Element when = doc.createElement("when");
-                    Element xpath = doc.createElement("xpath");
-                    xpath.setTextContent(t.xpath);
-                    when.appendChild(xpath);
-                    buildSubRoute(t.to, transitionMap, doc, when, new HashSet<>(visited));
-                    choice.appendChild(when);
-                    hasChoice = true;
-                    break;
-
-                case "otherwise":
-                    Element otherwise = doc.createElement("otherwise");
-                    buildSubRoute(t.to, transitionMap, doc, otherwise, new HashSet<>(visited));
-                    choice.appendChild(otherwise);
-                    hasChoice = true;
-                    break;
-
-                case "always":
-                    buildSubRoute(t.to, transitionMap, doc, parent, new HashSet<>(visited));
-                    break;
+            NodeList resourceTypeNodes = activity.getElementsByTagNameNS("*", "resourceType");
+            if (resourceTypeNodes.getLength() > 0) {
+                String resourceType = resourceTypeNodes.item(0).getTextContent().trim();
+                activityToType.put(normalize(name), resourceType);
             }
         }
 
-        if (hasChoice) parent.appendChild(choice);
+        NodeList transitions = doc.getElementsByTagNameNS(PD_NS, "transition");
+        for (int i = 0; i < transitions.getLength(); i++) {
+            Element t = (Element) transitions.item(i);
+            String from = getText(t, PD_NS, "from");
+            String to = getText(t, PD_NS, "to");
+            String type = getText(t, PD_NS, "conditionType");
+            String xpath = getText(t, PD_NS, "xpath");
+            if (from != null && to != null) {
+                Transition tr = new Transition(from, to, type, xpath);
+                graph.computeIfAbsent(tr.from, k -> new ArrayList<>()).add(tr);
+            }
+        }
+
+        camelDoc = builder.newDocument();
+        Element route = camelDoc.createElement("route");
+        route.setAttribute("id", "bw-to-camel-route");
+        camelDoc.appendChild(route);
+
+        Element starter = camelDoc.createElement("to");
+        starter.setAttribute("uri", mapToUri(startNode));
+        route.appendChild(starter);
+
+        visited.clear();
+        buildFlow(startNode, route);
+        deduplicateRoute(route);
+
+        NodeList routeChildren = route.getChildNodes();
+        Set<String> finalTos = new HashSet<>();
+
+        for (int i = 0; i < routeChildren.getLength(); i++) {
+            Node n = routeChildren.item(i);
+            if (n instanceof Element && ((Element) n).getTagName().equals("choice")) {
+                Element choice = (Element) n;
+                for (int j = i + 1; j < routeChildren.getLength(); j++) {
+                    Node after = routeChildren.item(j);
+                    if (after instanceof Element && ((Element) after).getTagName().equals("to")) {
+                        finalTos.add(((Element) after).getAttribute("uri"));
+                    }
+                }
+                NodeList branches = choice.getChildNodes();
+                for (int b = 0; b < branches.getLength(); b++) {
+                    Node branch = branches.item(b);
+                    if (branch instanceof Element) {
+                        NodeList branchChildren = branch.getChildNodes();
+                        List<Node> toRemove = new ArrayList<>();
+                        for (int c = 0; c < branchChildren.getLength(); c++) {
+                            Node child = branchChildren.item(c);
+                            if (child instanceof Element && ((Element) child).getTagName().equals("to")) {
+                                String uri = ((Element) child).getAttribute("uri");
+                                if (finalTos.contains(uri)) {
+                                    toRemove.add(child);
+                                }
+                            }
+                        }
+                        for (Node rm : toRemove) {
+                            branch.removeChild(rm);
+                        }
+                    }
+                }
+            }
+        }
+
+        Transformer transformer = TransformerFactory.newInstance().newTransformer();
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+        transformer.transform(new DOMSource(camelDoc), new StreamResult(System.out));
     }
 
-    private static void buildSubRoute(String next, Map<String, List<Transition>> map,
-                                      Document doc, Element parent, Set<String> visited) {
-        Element elem = doc.createElement(formatTag(next));
-        parent.appendChild(elem);
-        if (!"Send HTTP Response".equals(next)) {
-            buildRoute(next, map, doc, parent, visited);
+    static String getText(Element parent, String ns, String tag) {
+        NodeList list = parent.getElementsByTagNameNS(ns, tag);
+        return (list.getLength() > 0) ? list.item(0).getTextContent() : null;
+    }
+
+    static String normalize(String s) {
+        return s.trim().replaceAll("\\s+", "_");
+    }
+
+    static void buildFlow(String current, Element parent) {
+        if (visited.contains(current)) return;
+        visited.add(current);
+
+        if ("End".equalsIgnoreCase(current)) {
+            Element log = camelDoc.createElement("log");
+            log.setAttribute("message", "Flow ended");
+            parent.appendChild(log);
+            return;
+        }
+
+        String uri = mapToUri(current);
+        if (uri.startsWith("log:")) {
+            Element log = camelDoc.createElement("log");
+            log.setAttribute("message", uri.substring(4));
+            parent.appendChild(log);
+        } else {
+            Element to = camelDoc.createElement("to");
+            to.setAttribute("uri", uri);
+            parent.appendChild(to);
+        }
+
+        List<Transition> transitions = graph.getOrDefault(current, Collections.emptyList());
+
+        if (transitions.size() == 1 && !"otherwise".equalsIgnoreCase(transitions.get(0).conditionType)) {
+            buildFlow(transitions.get(0).to, parent);
+        } else if (!transitions.isEmpty()) {
+            Element choice = camelDoc.createElement("choice");
+            parent.appendChild(choice);
+
+            Map<String, List<String>> branchPaths = new LinkedHashMap<>();
+
+            for (Transition t : transitions) {
+                Element branchElem;
+                boolean isOtherwise = "otherwise".equalsIgnoreCase(t.conditionType);
+
+                if (isOtherwise) {
+                    branchElem = camelDoc.createElement("otherwise");
+                } else {
+                    branchElem = camelDoc.createElement("when");
+                    Element xpath = camelDoc.createElement("xpath");
+                    xpath.setTextContent(t.xpath.isEmpty() ? "true()" : t.xpath);
+                    branchElem.appendChild(xpath);
+                }
+
+                choice.appendChild(branchElem);
+
+                List<String> path = new ArrayList<>();
+                walkBranch(t.to, branchElem, path);
+                branchPaths.put(t.to, path);
+
+                if (isOtherwise && branchElem.getChildNodes().getLength() <= 1) {
+                    Element log = camelDoc.createElement("log");
+                    log.setAttribute("message", "Fallback - no specific condition met");
+                    branchElem.appendChild(log);
+                }
+            }
+
+            String common = findCommonTail(branchPaths.values());
+            if (common != null && !visited.contains(common)) {
+                buildFlow(common, parent);
+            }
         }
     }
 
-    private static String formatTag(String tag) {
-        return tag.trim().replace(" ", "_").replace("-", "_");
+    static void walkBranch(String current, Element parent, List<String> path) {
+        while (current != null) {
+            if (mergedNodes.contains(current) || "End".equalsIgnoreCase(current)) {
+                path.add(current);
+                break;
+            }
+
+            String uri = mapToUri(current);
+            if (uri.startsWith("log:")) {
+                Element log = camelDoc.createElement("log");
+                log.setAttribute("message", uri.substring(4));
+                parent.appendChild(log);
+            } else {
+                Element to = camelDoc.createElement("to");
+                to.setAttribute("uri", uri);
+                parent.appendChild(to);
+            }
+            path.add(current);
+
+            List<Transition> transitions = graph.getOrDefault(current, Collections.emptyList());
+            if (transitions.size() == 1 && !"otherwise".equalsIgnoreCase(transitions.get(0).conditionType)) {
+                current = transitions.get(0).to;
+            } else {
+                break;
+            }
+        }
     }
+
+    static String findCommonTail(Collection<List<String>> paths) {
+        if (paths.isEmpty()) return null;
+        Iterator<List<String>> it = paths.iterator();
+        List<String> base = new ArrayList<>(it.next());
+
+        while (it.hasNext()) {
+            List<String> next = it.next();
+            int min = Math.min(base.size(), next.size());
+            int i = 0;
+            while (i < min && base.get(base.size() - 1 - i).equals(next.get(next.size() - 1 - i))) {
+                i++;
+            }
+            if (i == 0) return null;
+            base = base.subList(base.size() - i, base.size());
+        }
+
+        if (!base.isEmpty()) {
+            mergedNodes.addAll(base);
+            return base.get(0);
+        }
+
+        return null;
+    }
+
+    static String mapToUri(String activityName) {
+        String normalized = normalize(activityName);
+        String type = activityToType.getOrDefault(normalized, "");
+
+        if (type.contains("FileWriteActivity")) return "file://output";
+        if (type.contains("httpEventSource")) return "http://start";
+        if (type.contains("SendMailActivity")) return "smtp://mail";
+        if (type.contains("JDBCQueryActivity")) return "sql:query";
+        if (type.contains("LogActivity")) return "log:Log message from: " + normalized;
+
+        return "log:Body : ${body}";
+    }
+
+    static void deduplicateRoute(Element route) {
+        Set<String> seenTo = new HashSet<>();
+        Set<String> seenLog = new HashSet<>();
+
+        NodeList children = route.getChildNodes();
+        List<Node> toRemove = new ArrayList<>();
+
+        for (int i = 0; i < children.getLength(); i++) {
+            Node node = children.item(i);
+            if (node instanceof Element element) {
+                String tag = element.getTagName();
+                if ("to".equals(tag)) {
+                    String uri = element.getAttribute("uri");
+                    if (!seenTo.add(uri)) {
+                        toRemove.add(element);
+                    }
+                } else if ("log".equals(tag)) {
+                    String message = element.getAttribute("message");
+                    if (!seenLog.add(message)) {
+                        toRemove.add(element);
+                    }
+                } else if ("choice".equals(tag)) {
+                    deduplicateChoice(element);
+                }
+            }
+        }
+
+        for (Node node : toRemove) {
+            route.removeChild(node);
+        }
+    }
+
+    static void deduplicateChoice(Element choice) {
+        NodeList branches = choice.getChildNodes();
+        for (int i = 0; i < branches.getLength(); i++) {
+            Node branch = branches.item(i);
+            if (branch instanceof Element branchElem) {
+                Set<String> seenTo = new HashSet<>();
+                Set<String> seenLog = new HashSet<>();
+                List<Node> toRemove = new ArrayList<>();
+
+                NodeList children = branchElem.getChildNodes();
+                for (int j = 0; j < children.getLength(); j++) {
+                    Node child = children.item(j);
+                    if (child instanceof Element elem) {
+                        if ("to".equals(elem.getTagName())) {
+                            String uri = elem.getAttribute("uri");
+                            if (!seenTo.add(uri)) {
+                                toRemove.add(elem);
+                            }
+                        } else if ("log".equals(elem.getTagName())) {
+                            String message = elem.getAttribute("message");
+                            if (!seenLog.add(message)) {
+                                toRemove.add(elem);
+                            }
+                        }
+                    }
+                }
+
+                for (Node rm : toRemove) {
+                    branchElem.removeChild(rm);
+                }
+            }
+        }
+    }
+
 }
