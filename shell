@@ -1,42 +1,300 @@
-#!/bin/bash
+package com.example.demo;
 
-# === CONFIG ===
-JIRA_USERNAME="your-email@example.com"
-JIRA_API_TOKEN="your-jira-api-token"
-JIRA_DOMAIN="your-domain.atlassian.net"
-JIRA_ISSUE_KEY="PROJECT-123"  # Replace with your JIRA issue key
+import org.w3c.dom.*;
 
-OPENAI_API_KEY="your-openai-api-key"
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import java.io.File;
+import java.util.*;
 
-# === STEP 1: Fetch JIRA Ticket Data ===
-echo "Fetching JIRA issue $JIRA_ISSUE_KEY..."
+public class Test1 {
 
-jira_response=$(curl -s -u $JIRA_USERNAME:$JIRA_API_TOKEN \
-  -X GET "https://$JIRA_DOMAIN/rest/api/2/issue/$JIRA_ISSUE_KEY" \
-  -H "Content-Type: application/json")
+    static class Transition {
+        String from, to, conditionType, xpath;
 
-# Extract fields (you can customize this)
-jira_summary=$(echo "$jira_response" | jq -r '.fields.summary')
-jira_description=$(echo "$jira_response" | jq -r '.fields.description')
+        Transition(String from, String to, String conditionType, String xpath) {
+            this.from = normalize(from);
+            this.to = normalize(to);
+            this.conditionType = conditionType != null ? conditionType.trim() : "always";
+            this.xpath = xpath != null ? xpath.trim() : "";
+        }
+    }
 
-# === STEP 2: Format Prompt for ChatGPT ===
-prompt="Generate a test input file based on the following JIRA ticket:\n\nSummary: $jira_summary\n\nDescription: $jira_description\n\nProvide JSON format test data."
+    static Map<String, List<Transition>> graph = new HashMap<>();
+    static Map<String, String> activityResourceTypes = new HashMap<>();
+    static Document camelDoc;
+    static Set<String> visited = new HashSet<>();
+    static Set<String> mergedNodes = new HashSet<>();
 
-echo "Sending prompt to ChatGPT..."
+    public static void main(String[] args) throws Exception {
+        File file = new File("/Users/Nithish/MainProcess.process");
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        Document doc = builder.parse(file);
+        doc.getDocumentElement().normalize();
 
-# === STEP 3: Send to ChatGPT API ===
-chatgpt_response=$(curl -s https://api.openai.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -d '{
-    "model": "gpt-3.5-turbo",
-    "messages": [{"role": "user", "content": "'"$prompt"'"}],
-    "temperature": 0.7
-  }')
+        String PD_NS = "http://xmlns.tibco.com/bw/process/2003";
 
-# === STEP 4: Extract Response and Save as Test File ===
-test_data=$(echo "$chatgpt_response" | jq -r '.choices[0].message.content')
+        // Parse all activity resource types
+        NodeList activities = doc.getElementsByTagNameNS(PD_NS, "activity");
+        for (int i = 0; i < activities.getLength(); i++) {
+            Element activity = (Element) activities.item(i);
+            String name = normalize(activity.getAttribute("name"));
+            String resourceType = getText(activity, PD_NS, "resourceType");
+            if (name != null && resourceType != null) {
+                activityResourceTypes.put(name, resourceType);
+            }
+        }
 
-echo "$test_data" > test_input.json
+        // Get <startName>
+        String startNode = null;
+        NodeList startNames = doc.getElementsByTagNameNS(PD_NS, "startName");
+        if (startNames.getLength() > 0) {
+            startNode = normalize(startNames.item(0).getTextContent());
+        }
+        if (startNode == null) {
+            System.err.println("No <pd:startName> found.");
+            return;
+        }
+        boolean skipStarterTo = true;
+        // Parse transitions
+        NodeList transitions = doc.getElementsByTagNameNS(PD_NS, "transition");
+        for (int i = 0; i < transitions.getLength(); i++) {
+            Element t = (Element) transitions.item(i);
+            String from = getText(t, PD_NS, "from");
+            String to = getText(t, PD_NS, "to");
+            String type = getText(t, PD_NS, "conditionType");
+            String xpath = getText(t, PD_NS, "xpath");
+            if (from != null && to != null) {
+                Transition tr = new Transition(from, to, type, xpath);
+                graph.computeIfAbsent(tr.from, k -> new ArrayList<>()).add(tr);
+            }
+        }
 
-echo "✅ Test input file generated: test_input.json"
+        // Determine starting URI
+        String fromUri = "direct:" + startNode;
+        boolean hasStarter = false;
+    //    boolean skipStarterTo = false;
+        NodeList starters = doc.getElementsByTagNameNS(PD_NS, "starter");
+        if (starters.getLength() > 0) {
+            Element starter = (Element) starters.item(0);
+            String resourceType = getText(starter, PD_NS, "resourceType");
+            String starterName = normalize(starter.getAttribute("name"));
+            hasStarter = true;
+            skipStarterTo = starterName.equals(startNode);
+            switch (resourceType) {
+                case "httppalette.httpEventSource":
+                    fromUri = "http://localhost";
+                    break;
+                case "ae.activities.FilePollerActivity":
+                    fromUri = "file:///test/sample/input.txt";
+                    break;
+                case "ae.activities.TimerEventSourceActivity":
+                    fromUri = "timer:foo?delay=3000";
+                    break;
+                default:
+                    fromUri = "direct:" + startNode;
+            }
+        }
+
+        // Create Camel Route
+        camelDoc = builder.newDocument();
+        Element route = camelDoc.createElement("route");
+        route.setAttribute("id", "bw-to-camel-route");
+        camelDoc.appendChild(route);
+
+        Element from = camelDoc.createElement("from");
+        from.setAttribute("uri", fromUri);
+        route.appendChild(from);
+
+        visited.clear();
+        buildFlow(startNode, route, skipStarterTo);
+
+        // Remove duplicate <to> under <choice>
+        NodeList routeChildren = camelDoc.getDocumentElement().getChildNodes();
+        Set<String> finalTos = new HashSet<>();
+        for (int i = 0; i < routeChildren.getLength(); i++) {
+            Node n = routeChildren.item(i);
+            if (n instanceof Element && ((Element) n).getTagName().equals("choice")) {
+                Element choice = (Element) n;
+                for (int j = i + 1; j < routeChildren.getLength(); j++) {
+                    Node after = routeChildren.item(j);
+                    if (after instanceof Element && ((Element) after).getTagName().equals("to")) {
+                        finalTos.add(((Element) after).getAttribute("uri"));
+                    }
+                }
+                NodeList branches = choice.getChildNodes();
+                for (int b = 0; b < branches.getLength(); b++) {
+                    Node branch = branches.item(b);
+                    if (branch instanceof Element) {
+                        NodeList branchChildren = branch.getChildNodes();
+                        List<Node> toRemove = new ArrayList<>();
+                        for (int c = 0; c < branchChildren.getLength(); c++) {
+                            Node child = branchChildren.item(c);
+                            if (child instanceof Element && ((Element) child).getTagName().equals("to")) {
+                                String uri = ((Element) child).getAttribute("uri");
+                                if (finalTos.contains(uri)) {
+                                    toRemove.add(child);
+                                }
+                            }
+                        }
+                        for (Node rm : toRemove) {
+                            branch.removeChild(rm);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Print to console
+        Transformer transformer = TransformerFactory.newInstance().newTransformer();
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
+        transformer.transform(new DOMSource(camelDoc), new StreamResult(System.out));
+    }
+
+    static String getText(Element parent, String ns, String tag) {
+        NodeList list = parent.getElementsByTagNameNS(ns, tag);
+        return (list.getLength() > 0) ? list.item(0).getTextContent() : null;
+    }
+
+    static String normalize(String s) {
+        return s.trim().replaceAll("\\s+", "_");
+    }
+
+    static void buildFlow(String current, Element parent, boolean skipTo) {
+        if (visited.contains(current)) return;
+        visited.add(current);
+
+        if ("End".equalsIgnoreCase(current)) {
+            Element log = camelDoc.createElement("log");
+            log.setAttribute("message", "Flow ended");
+            parent.appendChild(log);
+            return;
+        }
+
+        if (!skipTo) {
+            parent.appendChild(createToElement(current));
+        }
+
+        List<Transition> transitions = graph.getOrDefault(current, Collections.emptyList());
+
+        if (transitions.size() == 1 && !"otherwise".equalsIgnoreCase(transitions.get(0).conditionType)) {
+            buildFlow(transitions.get(0).to, parent, false);
+        } else if (!transitions.isEmpty()) {
+            Element choice = camelDoc.createElement("choice");
+            parent.appendChild(choice);
+
+            Map<String, List<String>> branchPaths = new LinkedHashMap<>();
+
+            for (Transition t : transitions) {
+                Element branchElem;
+                boolean isOtherwise = "otherwise".equalsIgnoreCase(t.conditionType);
+
+                if (isOtherwise) {
+                    branchElem = camelDoc.createElement("otherwise");
+                } else {
+                    branchElem = camelDoc.createElement("when");
+                    Element xpath = camelDoc.createElement("xpath");
+                    xpath.setTextContent(t.xpath.isEmpty() ? "true()" : t.xpath);
+                    branchElem.appendChild(xpath);
+                }
+
+                choice.appendChild(branchElem);
+
+                List<String> path = new ArrayList<>();
+                walkBranch(t.to, branchElem, path);
+                branchPaths.put(t.to, path);
+
+                if (isOtherwise && branchElem.getChildNodes().getLength() <= 1) {
+                    Element log = camelDoc.createElement("log");
+                    log.setAttribute("message", "Fallback - no specific condition met");
+                    branchElem.appendChild(log);
+                }
+            }
+
+            String common = findCommonTail(branchPaths.values());
+            if (common != null && !visited.contains(common)) {
+                buildFlow(common, parent, false);
+            }
+        }
+    }
+
+    static void walkBranch(String current, Element parent, List<String> path) {
+        while (current != null) {
+            if (mergedNodes.contains(current) || "End".equalsIgnoreCase(current)) {
+                path.add(current);
+                break;
+            }
+
+            parent.appendChild(createToElement(current));
+            path.add(current);
+
+            List<Transition> transitions = graph.getOrDefault(current, Collections.emptyList());
+            if (transitions.size() == 1 && !"otherwise".equalsIgnoreCase(transitions.get(0).conditionType)) {
+                current = transitions.get(0).to;
+            } else {
+                break;
+            }
+        }
+    }
+
+    static Element createToElement(String activityName) {
+        Element to = camelDoc.createElement("to");
+        String uri;
+        String resourceType = activityResourceTypes.getOrDefault(activityName, "");
+
+        switch (resourceType) {
+            case "ae.activities.FileWriteActivity":
+                uri = "file://output/sample.txt";
+                break;
+            case "ae.activities.FTPPutActivity":
+                uri = "ftp://host/output";
+                break;
+            case "ae.activities.SendMailActivity":
+                uri = "smtp://mailserver";
+                break;
+            case "ae.activities.JMSQueueSender":
+                uri = "jms:queue:outputQueue";
+                break;
+            case "ae.activities.JMSTopicPublisher":
+                uri = "jms:topic:outputTopic";
+                break;
+            default:
+                uri = "bean:" + activityName;
+        }
+
+        to.setAttribute("uri", uri);
+        return to;
+    }
+
+    static String findCommonTail(Collection<List<String>> paths) {
+        if (paths.isEmpty()) return null;
+        Iterator<List<String>> it = paths.iterator();
+        List<String> base = new ArrayList<>(it.next());
+
+        while (it.hasNext()) {
+            List<String> next = it.next();
+            int min = Math.min(base.size(), next.size());
+            int i = 0;
+            while (i < min && base.get(base.size() - 1 - i).equals(next.get(next.size() - 1 - i))) {
+                i++;
+            }
+            if (i == 0) return null;
+            base = base.subList(base.size() - i, base.size());
+        }
+
+        if (!base.isEmpty()) {
+            mergedNodes.addAll(base);
+            return base.get(0);
+        }
+
+        return null;
+    }
+}
