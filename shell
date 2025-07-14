@@ -266,6 +266,9 @@ public class Test1 {
             case "ae.activities.JMSTopicPublisher":
                 uri = "jms:topic:outputTopic";
                 break;
+            case "ae.activities.MapperActivity":
+                uri = "xslt:xsl/"+activityName+".xsl";
+                break;
             default:
                 uri = "bean:" + activityName;
         }
