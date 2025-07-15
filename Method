@@ -1,0 +1,70 @@
+package com.example.demo;
+
+import java.io.StringWriter;
+
+import org.w3c.dom.Element;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+public class Method {
+
+    public static void FilePoller (String  element) {
+
+        System.out.println("Elemt : "+element);
+
+        // Add more as needed
+    }
+
+    public static String EleToStr (Element element) throws TransformerException {
+
+        // Convert Element to String
+        TransformerFactory tf = TransformerFactory.newInstance();
+        Transformer transformer = tf.newTransformer();
+        transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+
+        StringWriter writer = new StringWriter();
+        transformer.transform(new DOMSource(element), new StreamResult(writer));
+        String output = writer.getBuffer().toString();
+
+   //     System.out.println("Starter Element:\n" + output);
+
+        // Add more as needed
+        return output;
+    }
+
+
+
+    public static String extractFilePollerParams(Element starterElement) {
+        if (starterElement == null) return "";
+
+        Element configElement = (Element) starterElement.getElementsByTagName("config").item(0);
+        if (configElement == null) return "";
+
+        String fileName = getTagValue("fileName", configElement);
+        String pollInterval = getTagValue("pollInterval", configElement);
+
+        if (fileName != null && pollInterval != null) {
+            return "?fileName=" + fileName + "&noop=true&delay=" + pollInterval;
+        }
+
+        return "";
+    }
+
+    private static String getTagValue(String tagName, Element parent) {
+        NodeList list = parent.getElementsByTagName(tagName);
+        if (list != null && list.getLength() > 0 && list.item(0).getTextContent() != null) {
+            return list.item(0).getTextContent().trim();
+        }
+        return null;
+    }
+
+
+}
