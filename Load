@@ -1,0 +1,132 @@
+import paramiko
+import time
+import subprocess
+
+# ---------------------------------------------------
+# CONFIGURATION
+# ---------------------------------------------------
+NODES = ["node1", "node2", "node3", "node4"]    # BW Admin agent names
+SSH_USER = "tibco"
+SSH_KEY_PATH = "/home/tibco/.ssh/id_rsa"
+
+DOMAIN = "MyDomain"
+TIBCO_USER = "admin"
+TIBCO_PASS = "password"
+
+APPLICATIONS = ["App1", "App2"]
+
+LOW_THRESHOLD = 30.0   # Average CPU below -> scale down
+HIGH_THRESHOLD = 70.0  # Average CPU above -> scale up
+MIN_INSTANCES = 1
+MAX_INSTANCES = 4
+COOLDOWN_SECONDS = 20 * 60   # 20 minutes cooldown
+
+# ---------------------------------------------------
+# HELPER FUNCTIONS
+# ---------------------------------------------------
+
+def ssh_exec(host, cmd):
+    """Execute command via SSH and return output."""
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(host, username=SSH_USER, key_filename=SSH_KEY_PATH)
+    stdin, stdout, stderr = ssh.exec_command(cmd)
+    result = stdout.read().decode().strip()
+    ssh.close()
+    return result
+
+def get_app_pids_and_cpu(host, app_name):
+    """Return list of tuples (host, pid, cpu) for a given app on this host."""
+    cmd = f"ps -eo pid,pcpu,cmd | grep {app_name} | grep -v grep"
+    output = ssh_exec(host, cmd)
+    pids = []
+    for line in output.splitlines():
+        parts = line.split(None, 2)
+        if len(parts) >= 2:
+            try:
+                pid = int(parts[0])
+                cpu = float(parts[1])
+                pids.append((host, pid, cpu))
+            except ValueError:
+                continue
+    return pids
+
+def get_average_cpu(app_name):
+    """Compute average CPU usage across all nodes for this app."""
+    all_cpu = []
+    for host in NODES:
+        pids = get_app_pids_and_cpu(host, app_name)
+        all_cpu.extend([cpu for _, _, cpu in pids])
+    return sum(all_cpu) / len(all_cpu) if all_cpu else 0.0
+
+def appmanage_node_command(action, app_name, node):
+    """Start or stop an app instance on a specific node (agent)."""
+    cmd = [
+        "AppManage",
+        f"-{action}",
+        "-app", app_name,
+        "-agent", node,
+        "-domain", DOMAIN,
+        "-user", TIBCO_USER,
+        "-pw", TIBCO_PASS
+    ]
+    print("Executing:", " ".join(cmd))
+    subprocess.run(cmd)
+
+def get_running_instance_count(status, app_name):
+    """Return count of nodes where this app is running."""
+    return sum(1 for s in status[app_name].values() if s == "running")
+
+def get_least_loaded_node(app_name):
+    """Return (node, pid, cpu%) of the least loaded running instance."""
+    all_pids = []
+    for host in NODES:
+        all_pids.extend(get_app_pids_and_cpu(host, app_name))
+    if not all_pids:
+        return None
+    return sorted(all_pids, key=lambda x: x[2])[0]
+
+# ---------------------------------------------------
+# MAIN LOOP
+# ---------------------------------------------------
+
+status = {app: {node: "unknown" for node in NODES} for app in APPLICATIONS}
+last_action_time = 0
+
+while True:
+    for app in APPLICATIONS:
+        # --- Build running/stopped map ---
+        for node in NODES:
+            pids = get_app_pids_and_cpu(node, app)
+            status[app][node] = "running" if pids else "stopped"
+
+        avg_cpu = get_average_cpu(app)
+        running = get_running_instance_count(status, app)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {app}: avg CPU={avg_cpu:.2f}% | running={running}/{len(NODES)}")
+
+        now = time.time()
+        if now - last_action_time < COOLDOWN_SECONDS:
+            continue  # skip scaling during cooldown
+
+        # --- SCALE DOWN ---
+        if avg_cpu < LOW_THRESHOLD and running > MIN_INSTANCES:
+            node_to_stop = get_least_loaded_node(app)
+            if node_to_stop:
+                node, pid, cpu = node_to_stop
+                print(f"CPU low → stopping {app} on {node} (PID={pid}, CPU={cpu:.2f}%)")
+                appmanage_node_command("stop", app, node)
+                status[app][node] = "stopped"
+                last_action_time = now
+
+        # --- SCALE UP ---
+        elif avg_cpu > HIGH_THRESHOLD and running < MAX_INSTANCES:
+            # start one stopped node at a time
+            stopped_nodes = [n for n, s in status[app].items() if s == "stopped"]
+            if stopped_nodes:
+                node = stopped_nodes[0]
+                print(f"CPU high → starting {app} on {node}")
+                appmanage_node_command("start", app, node)
+                status[app][node] = "running"
+                last_action_time = now
+
+    time.sleep(60)  # check every minute
