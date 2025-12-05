@@ -1,0 +1,17 @@
+Create a ppt slide which should talk about creating a new framework by using below category libraries 
+
+1. Function level libraries 
+  - custom functions ( substring , find and replace)
+  - encryption/decryption logic ( pgp, app level encrypt and decrypt)
+
+2.  Transformation libraries
+    - swift mt format to MX format and vice versa
+    - upgrade and downgrade pain/pacs format versions
+
+3. Connections levels libraries
+  - jms ,.mq connection
+ - kafka connection 
+
+4. Application connectors libraries 
+   - storm adapters libraries 
+   - dome adapter libraries 
