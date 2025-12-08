@@ -1,0 +1,434 @@
+From: <Saved by Blink>
+Snapshot-Content-Location: https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/d5d06e54ff2d9be3c617634a072909e2/5eef6b26-2e3f-4865-8dfb-740c4f92c02c/canvas-slides/presentation.html?rnd=1765175069748&utm_source=perplexity
+Subject: Apache Camel Integration Framework
+Date: Mon, 8 Dec 2025 12:10:39 +0530
+MIME-Version: 1.0
+Content-Type: multipart/related;
+	type="text/html";
+	boundary="----MultipartBoundary--A7cdjPcObBJGe47bTiV5MBEAZHTsZHNnZhFJdc8I1m----"
+
+
+------MultipartBoundary--A7cdjPcObBJGe47bTiV5MBEAZHTsZHNnZhFJdc8I1m----
+Content-Type: text/html
+Content-ID: <frame-6471539144874DA522DAA8D0178D65D2@mhtml.blink>
+Content-Transfer-Encoding: binary
+Content-Location: https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/d5d06e54ff2d9be3c617634a072909e2/5eef6b26-2e3f-4865-8dfb-740c4f92c02c/canvas-slides/presentation.html?rnd=1765175069748&utm_source=perplexity
+
+<!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><link rel="stylesheet" type="text/css" href="cid:css-5515c784-af1c-4dca-b6e2-489b589c55aa@mhtml.blink" />
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apache Camel Integration Framework</title>
+    
+</head>
+<body class="theme-dark">
+
+    <!-- Slide 1: Title Slide -->
+    <section class="slide p-16 col center" style="background-color: #020617; color: #f1f5f9;">
+        <h1 class="text-6xl mb-4" style="color: #38bdf8;">Apache Camel Integration Framework</h1>
+        <p class="text-2xl mb-6" style="color: #cbd5e1;">Custom Libraries for Modern Integration</p>
+        <div class="fill-height"></div>
+        <p class="text-sm" style="color: #94a3b8;">Architecture • Libraries • Layers</p>
+    </section>
+
+    <!-- Slide 2: Framework Overview -->
+    <section class="slide p-16 col" style="background-color: #0f172a; color: #f1f5f9;">
+        <h2 class="mb-6" style="color: #38bdf8;">Framework Overview</h2>
+        <div class="fill-height">
+            <ul class="text-lg" style="color: #cbd5e1;">
+                <li><strong style="color: #38bdf8;">Apache Camel</strong> – Enterprise Integration Patterns (EIPs) engine</li>
+                <li><strong style="color: #38bdf8;">Quarkus Runtime</strong> – Fast startup, low memory footprint</li>
+                <li><strong style="color: #38bdf8;">4 Custom Library Categories</strong> – Function, Transformation, Connection, Connectors</li>
+                <li><strong style="color: #38bdf8;">Cloud-Native</strong> – Kubernetes-ready, microservices-friendly</li>
+                <li><strong style="color: #38bdf8;">Modular Design</strong> – Reusable, pluggable, extensible components</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Slide 3: Architecture Diagram -->
+    <section class="slide p-16 col" style="background-color: #0f172a; color: #f1f5f9;">
+        <h2 class="text-center mb-6" style="color: #38bdf8;">Integration Architecture</h2>
+        <div class="fill-height row center" style="gap: 1rem;">
+            <svg width="880" height="400" viewBox="0 0 880 400" style="flex-shrink: 0;">
+                <!-- Title -->
+                <text x="440" y="25" font-size="16" font-weight="bold" text-anchor="middle" fill="#38bdf8">Apache Camel Integration Framework Architecture</text>
+
+                <!-- External Systems (Top) -->
+                <rect x="50" y="50" width="780" height="60" fill="#334155" stroke="#38bdf8" stroke-width="2" rx="5"></rect>
+                <text x="440" y="85" font-size="13" font-weight="bold" text-anchor="middle" fill="#f1f5f9">External Systems</text>
+                <text x="440" y="102" font-size="11" text-anchor="middle" fill="#cbd5e1">Messaging (JMS, MQ, Kafka) • Protocols (HTTP, REST) • Databases • Applications (SWIFT, Storm, Dome)</text>
+
+                <!-- Arrow Down -->
+                <line x1="440" y1="110" x2="440" y2="130" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrowhead)"></line>
+
+                <!-- Camel Core (Center) -->
+                <ellipse cx="440" cy="190" rx="120" ry="50" fill="#10b981" stroke="#38bdf8" stroke-width="2"></ellipse>
+                <text x="440" y="185" font-size="13" font-weight="bold" text-anchor="middle" fill="#f1f5f9">Apache Camel Core</text>
+                <text x="440" y="200" font-size="11" text-anchor="middle" fill="#f1f5f9">Routes, EIPs, Components</text>
+
+                <!-- Library Boxes -->
+                <!-- Function Libraries (Left) -->
+                <rect x="30" y="260" width="150" height="100" fill="#1e293b" stroke="#38bdf8" stroke-width="2" rx="5"></rect>
+                <text x="105" y="278" font-size="12" font-weight="bold" text-anchor="middle" fill="#38bdf8">Function Libraries</text>
+                <text x="105" y="296" font-size="10" text-anchor="middle" fill="#cbd5e1">• XPath Functions</text>
+                <text x="105" y="310" font-size="10" text-anchor="middle" fill="#cbd5e1">• Custom Functions</text>
+                <text x="105" y="324" font-size="10" text-anchor="middle" fill="#cbd5e1">• Encryption/Decryption</text>
+                <text x="105" y="342" font-size="9" text-anchor="middle" fill="#94a3b8">(PGP, App-level)</text>
+
+                <!-- Transformation Libraries (Top Right) -->
+                <rect x="700" y="260" width="150" height="100" fill="#1e293b" stroke="#38bdf8" stroke-width="2" rx="5"></rect>
+                <text x="775" y="278" font-size="12" font-weight="bold" text-anchor="middle" fill="#38bdf8">Transformation Libraries</text>
+                <text x="775" y="296" font-size="10" text-anchor="middle" fill="#cbd5e1">• SWIFT MT ↔ MX</text>
+                <text x="775" y="310" font-size="10" text-anchor="middle" fill="#cbd5e1">• Format Version</text>
+                <text x="775" y="324" font-size="10" text-anchor="middle" fill="#cbd5e1">• Upgrade/Downgrade</text>
+
+                <!-- Connection Libraries (Bottom Left) -->
+                <rect x="30" y="280" width="150" height="120" fill="#1e293b" stroke="#38bdf8" stroke-width="2" rx="5" style="margin-top: 20px;"></rect>
+                <text x="105" y="305" font-size="12" font-weight="bold" text-anchor="middle" fill="#38bdf8" style="margin-top: 20px;">Connection Libraries</text>
+                <text x="105" y="323" font-size="10" text-anchor="middle" fill="#cbd5e1">• JMS / MQ Helpers</text>
+                <text x="105" y="337" font-size="10" text-anchor="middle" fill="#cbd5e1">• Kafka Helpers</text>
+                <text x="105" y="351" font-size="10" text-anchor="middle" fill="#cbd5e1">• HTTP / DB Pools</text>
+
+                <!-- Application Connectors (Bottom Right) -->
+                <rect x="700" y="280" width="150" height="120" fill="#1e293b" stroke="#38bdf8" stroke-width="2" rx="5" style="margin-top: 20px;"></rect>
+                <text x="775" y="305" font-size="12" font-weight="bold" text-anchor="middle" fill="#38bdf8" style="margin-top: 20px;">App Connectors</text>
+                <text x="775" y="323" font-size="10" text-anchor="middle" fill="#cbd5e1">• Storm Adapters</text>
+                <text x="775" y="337" font-size="10" text-anchor="middle" fill="#cbd5e1">• Dome Adapters</text>
+                <text x="775" y="351" font-size="10" text-anchor="middle" fill="#cbd5e1">• 3rd Party Connectors</text>
+
+                <!-- Arrows from Libraries to Camel -->
+                <line x1="105" y1="260" x2="360" y2="210" stroke="#38bdf8" stroke-width="2" stroke-dasharray="5,5"></line>
+                <line x1="775" y1="260" x2="520" y2="210" stroke="#38bdf8" stroke-width="2" stroke-dasharray="5,5"></line>
+
+                <!-- Arrow Marker -->
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                        <polygon points="0 0, 10 3, 0 6" fill="#38bdf8"></polygon>
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+    </section>
+
+    <!-- Slide 4: Function Libraries -->
+    <section class="slide p-16 col" style="background-color: #0f172a; color: #f1f5f9;">
+        <h2 class="mb-6" style="color: #38bdf8;">Function Libraries</h2>
+        <div class="fill-height row gap-lg">
+            <div class="fill-width card" style="background-color: #1e293b; color: #f1f5f9;">
+                <h4 style="color: #38bdf8;">XPath Functions</h4>
+                <p style="color: #cbd5e1; font-size: 0.95rem;">XML path evaluation and extraction</p>
+            </div>
+            <div class="fill-width card" style="background-color: #1e293b; color: #f1f5f9;">
+                <h4 style="color: #38bdf8;">Custom Functions</h4>
+                <p style="color: #cbd5e1; font-size: 0.95rem;">substring, find &amp; replace, text manipulation</p>
+            </div>
+            <div class="fill-width card" style="background-color: #1e293b; color: #f1f5f9;">
+                <h4 style="color: #38bdf8;">Encryption/Decryption</h4>
+                <p style="color: #cbd5e1; font-size: 0.95rem;">PGP &amp; app-level encryption logic</p>
+            </div>
+        </div>
+        <div class="fill-height"></div>
+    </section>
+
+    <!-- Slide 5: Transformation Libraries -->
+    <section class="slide p-16 col" style="background-color: #0f172a; color: #f1f5f9;">
+        <h2 class="mb-6" style="color: #38bdf8;">Transformation Libraries</h2>
+        <div class="fill-height col gap-lg">
+            <div class="card" style="background-color: #1e293b; color: #f1f5f9;">
+                <h4 style="color: #38bdf8;">SWIFT MT ↔ MX Format Conversion</h4>
+                <p style="color: #cbd5e1;">Convert legacy SWIFT MT format to modern MX format and vice versa</p>
+            </div>
+            <div class="card" style="background-color: #1e293b; color: #f1f5f9;">
+                <h4 style="color: #38bdf8;">Format Version Management</h4>
+                <p style="color: #cbd5e1;">Upgrade and downgrade between different format versions seamlessly</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Slide 6: Connection Libraries -->
+    <section class="slide p-16 col" style="background-color: #0f172a; color: #f1f5f9;">
+        <h2 class="mb-4" style="color: #38bdf8;">Connection Libraries</h2>
+        <div class="fill-height row gap-lg">
+            <div class="fill-width card card-sm" style="background-color: #1e293b; color: #f1f5f9;">
+                <h4 style="color: #38bdf8;">Message Brokers</h4>
+                <ul style="color: #cbd5e1; font-size: 0.95rem; margin-left: 1rem;">
+                    <li>JMS Connections</li>
+                    <li>IBM MQ Support</li>
+                </ul>
+            </div>
+            <div class="fill-width card card-sm" style="background-color: #1e293b; color: #f1f5f9;">
+                <h4 style="color: #38bdf8;">Event Streaming</h4>
+                <ul style="color: #cbd5e1; font-size: 0.95rem; margin-left: 1rem;">
+                    <li>Kafka Producers</li>
+                    <li>Kafka Consumers</li>
+                </ul>
+            </div>
+            <div class="fill-width card card-sm" style="background-color: #1e293b; color: #f1f5f9;">
+                <h4 style="color: #38bdf8;">HTTP &amp; Data</h4>
+                <ul style="color: #cbd5e1; font-size: 0.95rem; margin-left: 1rem;">
+                    <li>HTTP/REST Clients</li>
+                    <li>Database Pools</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Slide 7: Application Connectors -->
+    <section class="slide p-16 col" style="background-color: #0f172a; color: #f1f5f9;">
+        <h2 class="mb-6" style="color: #38bdf8;">Application Connectors Libraries</h2>
+        <div class="fill-height col gap-lg">
+            <div class="card card-sm" style="background-color: #1e293b; color: #f1f5f9;">
+                <h4 style="color: #38bdf8;">Storm Adapters</h4>
+                <p style="color: #cbd5e1;">Inbound and outbound adapter libraries for Storm integration</p>
+            </div>
+            <div class="card card-sm" style="background-color: #1e293b; color: #f1f5f9;">
+                <h4 style="color: #38bdf8;">Dome Adapters</h4>
+                <p style="color: #cbd5e1;">Specialized adapter libraries for Dome platform connectivity</p>
+            </div>
+            <div class="card card-sm" style="background-color: #1e293b; color: #f1f5f9;">
+                <h4 style="color: #38bdf8;">3rd Party Connectors</h4>
+                <p style="color: #cbd5e1;">Extensible connector libraries for third-party systems and APIs</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Slide 8: Layer Architecture -->
+    <section class="slide p-16 col" style="background-color: #0f172a; color: #f1f5f9;">
+        <h2 class="text-center mb-6" style="color: #38bdf8;">Layered Architecture Model</h2>
+        <div class="fill-height flex" style="flex-direction: column; gap: 0.8rem;">
+            <div class="card card-sm" style="background-color: #10b981; color: #0f172a;">
+                <h4 style="color: #0f172a; margin-bottom: 0.2rem;">Layer 1: Integration Layer</h4>
+                <p style="font-size: 0.9rem;">Apache Camel Core, Routes, EIPs, Context Management</p>
+            </div>
+            <div class="card card-sm" style="background-color: #06b6d4; color: #0f172a;">
+                <h4 style="color: #0f172a; margin-bottom: 0.2rem;">Layer 2: Custom Libraries (4 Categories)</h4>
+                <p style="font-size: 0.9rem;">Function, Transformation, Connection, Application Connectors</p>
+            </div>
+            <div class="card card-sm" style="background-color: #f59e0b; color: #0f172a;">
+                <h4 style="color: #0f172a; margin-bottom: 0.2rem;">Layer 3: Component Layer</h4>
+                <p style="font-size: 0.9rem;">Camel Components, Adapters, Connectors (reusable)</p>
+            </div>
+            <div class="card card-sm" style="background-color: #8b5cf6; color: #f1f5f9;">
+                <h4 style="color: #f1f5f9; margin-bottom: 0.2rem;">Layer 4: External Systems</h4>
+                <p style="font-size: 0.9rem;">Messaging, Databases, APIs, Legacy Systems</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Slide 9: Library Classification -->
+    <section class="slide p-16 col" style="background-color: #0f172a; color: #f1f5f9;">
+        <h2 class="mb-4" style="color: #38bdf8;">Library Classification &amp; Dependencies</h2>
+        <div class="fill-height col gap-md" style="font-size: 0.95rem;">
+            <div>
+                <p style="color: #38bdf8; font-weight: bold;">Core Dependencies:</p>
+                <ul style="color: #cbd5e1; margin-left: 1.5rem; margin-top: 0.4rem;">
+                    <li>All libraries depend on Apache Camel Core</li>
+                    <li>Quarkus runtime provides the execution environment</li>
+                </ul>
+            </div>
+            <div>
+                <p style="color: #38bdf8; font-weight: bold;">Shared Utilities:</p>
+                <ul style="color: #cbd5e1; margin-left: 1.5rem; margin-top: 0.4rem;">
+                    <li>Function libraries used by transformation &amp; connectors</li>
+                    <li>Connection libraries used by connectors</li>
+                </ul>
+            </div>
+            <div>
+                <p style="color: #38bdf8; font-weight: bold;">Isolation:</p>
+                <ul style="color: #cbd5e1; margin-left: 1.5rem; margin-top: 0.4rem;">
+                    <li>Each library is independently deployable as a JAR/module</li>
+                    <li>No direct dependencies between library categories</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Slide 10: Implementation Stack -->
+    <section class="slide p-16 col" style="background-color: #0f172a; color: #f1f5f9;">
+        <h2 class="mb-6" style="color: #38bdf8;">Implementation Technology Stack</h2>
+        <div class="fill-height row gap-lg">
+            <div class="fill-width card" style="background-color: #1e293b;">
+                <h4 style="color: #38bdf8;">Runtime</h4>
+                <ul style="color: #cbd5e1; font-size: 0.95rem; margin-left: 1rem;">
+                    <li>Quarkus 3.x+</li>
+                    <li>Java 17+</li>
+                    <li>GraalVM Native</li>
+                </ul>
+            </div>
+            <div class="fill-width card" style="background-color: #1e293b;">
+                <h4 style="color: #38bdf8;">Framework</h4>
+                <ul style="color: #cbd5e1; font-size: 0.95rem; margin-left: 1rem;">
+                    <li>Apache Camel 4.x</li>
+                    <li>Camel Quarkus</li>
+                    <li>Enterprise Patterns</li>
+                </ul>
+            </div>
+            <div class="fill-width card" style="background-color: #1e293b;">
+                <h4 style="color: #38bdf8;">Deployment</h4>
+                <ul style="color: #cbd5e1; font-size: 0.95rem; margin-left: 1rem;">
+                    <li>Kubernetes/OpenShift</li>
+                    <li>Docker Containers</li>
+                    <li>Cloud-Native</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Slide 11: Key Benefits -->
+    <section class="slide p-16 col" style="background-color: #0f172a; color: #f1f5f9;">
+        <h2 class="mb-6" style="color: #38bdf8;">Key Benefits</h2>
+        <div class="fill-height">
+            <ul class="text-lg" style="color: #cbd5e1;">
+                <li><strong style="color: #38bdf8;">Modularity</strong> – Independent, reusable library components</li>
+                <li><strong style="color: #38bdf8;">Standardization</strong> – Consistent patterns across integration logic</li>
+                <li><strong style="color: #38bdf8;">Scalability</strong> – Easy to add new protocols, transformations, connectors</li>
+                <li><strong style="color: #38bdf8;">Performance</strong> – Fast startup with Quarkus native compilation</li>
+                <li><strong style="color: #38bdf8;">Cloud-Native</strong> – Kubernetes-ready, microservices architecture</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Slide 12: Roadmap -->
+    <section class="slide p-16 col" style="background-color: #0f172a; color: #f1f5f9;">
+        <h2 class="mb-6" style="color: #38bdf8;">Implementation Roadmap</h2>
+        <div class="fill-height col gap-md">
+            <div class="card card-sm" style="background-color: #1e293b;">
+                <p style="color: #38bdf8; font-weight: bold;">Phase 1 – Foundation (Weeks 1-4)</p>
+                <p style="color: #cbd5e1; font-size: 0.95rem;">Setup Quarkus project, define Camel routes, establish base architecture</p>
+            </div>
+            <div class="card card-sm" style="background-color: #1e293b;">
+                <p style="color: #38bdf8; font-weight: bold;">Phase 2 – Libraries (Weeks 5-10)</p>
+                <p style="color: #cbd5e1; font-size: 0.95rem;">Develop 4 library categories, create reusable modules</p>
+            </div>
+            <div class="card card-sm" style="background-color: #1e293b;">
+                <p style="color: #38bdf8; font-weight: bold;">Phase 3 – Integration (Weeks 11-14)</p>
+                <p style="color: #cbd5e1; font-size: 0.95rem;">Connect to external systems, test routing, performance tuning</p>
+            </div>
+            <div class="card card-sm" style="background-color: #1e293b;">
+                <p style="color: #38bdf8; font-weight: bold;">Phase 4 – Deployment (Weeks 15+)</p>
+                <p style="color: #cbd5e1; font-size: 0.95rem;">Docker/Kubernetes containerization, production deployment</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Slide 13: Closing Slide -->
+    <section class="slide p-16 col center" style="background-color: #020617; color: #f1f5f9;">
+        <h2 class="text-4xl mb-8" style="color: #38bdf8;">Ready to Build?</h2>
+        <p class="text-xl mb-4" style="color: #cbd5e1;">Apache Camel + Custom Libraries = Powerful Integration Platform</p>
+        <div class="fill-height"></div>
+        <p class="text-sm" style="color: #94a3b8;">Questions?</p>
+    </section>
+
+
+
+</body></html>
+------MultipartBoundary--A7cdjPcObBJGe47bTiV5MBEAZHTsZHNnZhFJdc8I1m----
+Content-Type: text/css
+Content-Transfer-Encoding: binary
+Content-Location: cid:css-5515c784-af1c-4dca-b6e2-489b589c55aa@mhtml.blink
+
+@charset "utf-8";
+
+:root { --font-family-display: Arial, sans-serif; --font-weight-display: 600; --font-family-content: Arial, sans-serif; --font-weight-content: 400; --font-size-content: 16px; --line-height-content: 1.4; }
+
+body.theme-dark { --color-bg-base: #0f172a; --color-bg-elevated: #020617; --color-bg-surface: #1e293b; --color-bg-muted: #334155; --color-text-primary: #f1f5f9; --color-text-secondary: #cbd5e1; --color-text-muted: #94a3b8; --color-text-accent: #38bdf8; --color-primary: #38bdf8; }
+
+* { margin: 0px; padding: 0px; box-sizing: border-box; }
+
+body { font-family: var(--font-family-content); font-weight: var(--font-weight-content); font-size: var(--font-size-content); line-height: var(--line-height-content); overflow-x: hidden; }
+
+.slide { width: 960px; height: 540px; margin: 0px auto 20px; display: flex; flex-shrink: 0; position: relative; overflow: hidden; }
+
+.row { flex-direction: row; }
+
+.col { flex-direction: column; }
+
+.center { justify-content: center; align-items: center; text-align: center; }
+
+.space-between { justify-content: space-between; }
+
+.items-center { align-items: center; }
+
+.items-start { align-items: flex-start; }
+
+.fill-width { flex: 1 1 0%; }
+
+.fill-height { flex: 1 1 0%; display: flex; flex-direction: column; }
+
+.gap-sm { gap: 0.5rem; }
+
+.gap-md { gap: 1rem; }
+
+.gap-lg { gap: 1.5rem; }
+
+.gap-xl { gap: 2rem; }
+
+.gap-2xl { gap: 3rem; }
+
+.p-4 { padding: 1rem; }
+
+.p-6 { padding: 1.5rem; }
+
+.p-8 { padding: 2rem; }
+
+.p-12 { padding: 3rem; }
+
+.p-16 { padding: 4rem; }
+
+.mb-2 { margin-bottom: 0.5rem; }
+
+.mb-4 { margin-bottom: 1rem; }
+
+.mb-6 { margin-bottom: 1.5rem; }
+
+.mb-8 { margin-bottom: 2rem; }
+
+.mt-2 { margin-top: 0.5rem; }
+
+.mt-4 { margin-top: 1rem; }
+
+.mt-6 { margin-top: 1.5rem; }
+
+.mt-8 { margin-top: 2rem; }
+
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-family-display); font-weight: var(--font-weight-display); line-height: 1.2; margin: 0px; }
+
+h1 { font-size: 3rem; }
+
+h2 { font-size: 2.25rem; }
+
+h3 { font-size: 1.75rem; }
+
+h4 { font-size: 1.5rem; }
+
+.text-6xl { font-size: 3.75rem; }
+
+.text-4xl { font-size: 2.25rem; }
+
+.text-2xl { font-size: 1.5rem; }
+
+.text-xl { font-size: 1.25rem; }
+
+.text-lg { font-size: 1.125rem; }
+
+.text-base { font-size: 1rem; }
+
+.text-sm { font-size: 0.875rem; }
+
+.font-bold { font-weight: 700; }
+
+.font-semibold { font-weight: 600; }
+
+.text-center { text-align: center; }
+
+.text-left { text-align: left; }
+
+ul, ol { margin-left: 2rem; line-height: 1.8; }
+
+li { margin-bottom: 0.75rem; }
+
+li:last-child { margin-bottom: 0px; }
+
+.card { padding: 1.5rem; box-shadow: rgba(0, 0, 0, 0.2) 0px 8px 16px; }
+
+.card-sm { padding: 1rem; box-shadow: rgba(0, 0, 0, 0.15) 0px 4px 8px; }
+------MultipartBoundary--A7cdjPcObBJGe47bTiV5MBEAZHTsZHNnZhFJdc8I1m------
