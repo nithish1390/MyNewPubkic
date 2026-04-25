@@ -1,0 +1,125 @@
+AI Use Case 1: Intelligent Payment Failure Resolution
+USE CASE OVERVIEW
+Description
+Problem: Payment failures require manual investigation across DB, logs, and multiple tools
+Solution: AI chatbot that performs automated root cause analysis
+Data Used:
+Transaction DB
+ELK logs
+Payment service logs
+Flow:
+User asks: “My payment failed”
+Bot checks DB → fetches transaction
+Queries ELK → identifies timeout/network issue
+Responds with reason
+Auto-creates:
+Jira ticket
+ServiceNow incident
+Beneficiary
+Banking Operations (Payments Team)
+Customer Support Team
+Incident Management Team
+Geographical Scope
+PoC: Single region (e.g., India Payments)
+Prod: Global payment systems
+Users:
+Customer support agents
+Operations teams
+Originator
+Banking Operations – Payments Domain
+Business Case (AI Value)
+Reduction in investigation time: ~70%
+Faster incident resolution (MTTR improvement)
+Improved customer satisfaction
+Business Case Comments
+Uses automated log correlation + DB lookup
+Reduces manual dependency on multiple tools
+Client or Partner Facing?
+
+✔ Yes (Indirectly – improves customer experience)
+
+🔵 AI Use Case 2: DevOps Intelligent Troubleshooting Assistant
+USE CASE OVERVIEW
+Description
+Problem: Engineers spend time diagnosing performance issues manually
+Solution: AI assistant for real-time system diagnostics & recommendations
+Data Used:
+ELK metrics (CPU, memory, latency)
+Monitoring tools
+Deployment logs
+Flow:
+Engineer asks: “Why is payment service slow?”
+Bot analyzes ELK metrics
+Detects high CPU usage
+Suggests action:
+Restart service
+Scale resources
+Optional:
+Trigger Jenkins deployment/restart job
+Beneficiary
+DevOps Team
+SRE Team
+Platform Engineering
+Geographical Scope
+PoC: Specific environment (UAT/Prod cluster)
+Prod: Multi-region infrastructure
+Users:
+Engineers
+DevOps teams
+Originator
+IT Infrastructure / DevOps Team
+Business Case (AI Value)
+Faster root cause detection (~60% improvement)
+Reduced downtime
+Automated remediation
+Business Case Comments
+Integrates ELK + Jenkins
+Enables self-healing systems
+Client or Partner Facing?
+
+❌ No (Internal use case)
+
+🟢 AI Use Case 3: AI-Powered Business Reporting Assistant
+USE CASE OVERVIEW
+Description
+Problem: Manual effort required to generate daily business reports
+Solution: AI chatbot for on-demand analytics & reporting
+Data Used:
+Transaction DB
+Payment systems data
+Flow:
+Manager asks: “Show today’s payment success rate”
+Bot queries DB
+Calculates success rate
+Generates:
+Chart/visualization
+Excel report
+Sends via email automatically
+Beneficiary
+Business Managers
+Finance Team
+Strategy & Analytics Teams
+Geographical Scope
+PoC: Single business unit
+Prod: Enterprise-wide reporting
+Users:
+Managers
+Executives
+Originator
+Business Analytics / Finance Team
+Business Case (AI Value)
+Saves reporting time (~80% reduction)
+Real-time insights for decision-making
+Improved operational visibility
+Business Case Comments
+Automated report generation (Excel + charts)
+Reduces dependency on BI teams
+Client or Partner Facing?
+
+✔ Yes (Insights may be shared externally)
+
+If you want, I can:
+
+Convert this into a PPT slide deck (matching your template exactly)
+Or 
+generate a visual architecture diagram for all 3 use cases
