@@ -1,100 +1,148 @@
-import os
-import re
-import json
-import traceback
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+        sender_email = _safe_str(getattr(source, "SenderEmailAddress", ""))
+        source_subject = _safe_str(getattr(source, "Subject", ""))
+        source_body = _safe_str(getattr(source, "Body", ""))
 
-import win32com.client  # pywin32
+        tone, draft_body = _intent_to_draft(
+            subject=source_subject,
+            sender_name=sender_name,
+            latest_body=source_body,
+            user_intent=user_intent,
+        )
 
-try:
-    from mcp.server.fastmcp import FastMCP
-except Exception as exc:  # pragma: no cover
-    raise RuntimeError(
-        "Could not import FastMCP from 'mcp'. Install dependencies from requirements.txt"
-    ) from exc
+        draft = outlook.CreateItem(0)  # olMailItem
+        subject = source_subject
+        if prepend_re and not _normalize(subject).startswith("re:"):
+            subject = f"Re: {subject}"
+
+        recipients = _split_recipients(to_recipients)
+        if not recipients and sender_email:
+            recipients = [sender_email]
+
+        draft.Subject = subject
+        draft.To = "; ".join(recipients)
+        draft.CC = "; ".join(_split_recipients(cc_recipients))
+        draft.Body = draft_body
+
+        added_attachments = []
+        for p in attachment_paths:
+            if not os.path.isfile(p):
+                continue
+            draft.Attachments.Add(os.path.abspath(p))
+            added_attachments.append(os.path.abspath(p))
+
+        draft.Save()
+
+        return {
+            "ok": True,
+            "message": "Draft created successfully.",
+            "draft": {
+                "subject": draft.Subject,
+                "to": draft.To,
+                "cc": draft.CC,
+                "body_preview": _extract_plaintext(draft.Body, 1000),
+                "tone": tone,
+                "source_subject": source_subject,
+                "source_sender": sender_name,
+                "source_sender_email": sender_email,
+                "attachments_added": added_attachments,
+                "saved_at": datetime.now().isoformat(timespec="seconds"),
+            },
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "trace": traceback.format_exc()}
 
 
-mcp = FastMCP("outlook-mail-mcp")
-
-
-@dataclass
-class MailMatch:
-    entry_id: str
-    subject: str
-    sender_name: str
-    sender_email: str
-    received_time: str
-    folder_path: str
-    conversation_id: str
-
-
-def _safe_str(value: Any) -> str:
-    if value is None:
-        return ""
-    return str(value)
-
-
-def _get_outlook_namespace():
-    outlook = win32com.client.Dispatch("Outlook.Application")
-    return outlook.GetNamespace("MAPI"), outlook
-
-
-def _normalize(s: str) -> str:
-    return _safe_str(s).strip().lower()
-
-
-def _resolve_folder(namespace, folder_path: str):
+@mcp.tool()
+def download_attachments(
+    folder_path: str,
+    subject_contains: str = "",
+    sender_contains: str = "",
+    download_dir: str = ".",
+    max_messages: int = 20,
+    overwrite: bool = False,
+) -> Dict[str, Any]:
     """
-    Resolve folder by path like:
-    - "Inbox"
-    - "Inbox/Finance"
-    - "Mailbox - John Doe/Inbox/Finance"
+    Download attachments from matching emails in a selected folder.
+
+    Args:
+        folder_path: Folder path to search emails.
+        subject_contains: Subject filter.
+        sender_contains: Sender filter.
+        download_dir: Destination directory.
+        max_messages: Max matching messages to process.
+        overwrite: Overwrite existing files if True.
     """
-    folder_path = folder_path.strip().strip("/")
-    if not folder_path:
-        raise ValueError("folder_path cannot be empty")
-
-    parts = [p.strip() for p in folder_path.split("/") if p.strip()]
-    if not parts:
-        raise ValueError("folder_path is invalid")
-
-    stores = namespace.Folders
-
-    # Case 1: full path starts with mailbox root
-    for i in range(1, stores.Count + 1):
-        root = stores.Item(i)
-        if _normalize(root.Name) == _normalize(parts[0]):
-            folder = root
-            for part in parts[1:]:
-                folder = _child_folder(folder, part)
-            return folder
-
-    # Case 2: short path. Find first mailbox containing top-level folder
-    for i in range(1, stores.Count + 1):
-        root = stores.Item(i)
-        try:
-            folder = _child_folder(root, parts[0])
-            for part in parts[1:]:
-                folder = _child_folder(folder, part)
-            return folder
-        except Exception:
-            continue
-
-    raise ValueError(
-        f"Could not resolve folder_path='{folder_path}'. Use a full path like 'Mailbox - Name/Inbox/SubFolder'."
-    )
-
-
-def _child_folder(parent, name: str):
-    for i in range(1, parent.Folders.Count + 1):
-        child = parent.Folders.Item(i)
-        if _normalize(child.Name) == _normalize(name):
-            return child
-    raise ValueError(f"Folder '{name}' not found under '{parent.Name}'")
-
-
-def _mail_to_summary(mail_item, folder_path: str) -> MailMatch:
-    sender_email = ""
     try:
+        namespace, _ = _get_outlook_namespace()
+        folder = _resolve_folder(namespace, folder_path)
+
+        os.makedirs(download_dir, exist_ok=True)
+        matches = _collect_mail_matches(
+            folder=folder,
+            folder_path=folder_path,
+            subject_contains=subject_contains,
+            sender_contains=sender_contains,
+            max_messages=max_messages,
+        )
+
+        downloaded = []
+        skipped = []
+
+        for m in matches:
+            item = _get_mail_by_entry_id(namespace, m.entry_id)
+            attachments = getattr(item, "Attachments", None)
+            if attachments is None:
+                continue
+
+            for i in range(1, attachments.Count + 1):
+                att = attachments.Item(i)
+                filename = _safe_str(getattr(att, "FileName", "attachment.bin"))
+                target = os.path.abspath(os.path.join(download_dir, filename))
+
+                if os.path.exists(target) and not overwrite:
+                    skipped.append(target)
+                    continue
+
+                att.SaveAsFile(target)
+                downloaded.append(
+                    {
+                        "file": target,
+                        "mail_subject": m.subject,
+                        "sender": m.sender_email or m.sender_name,
+                        "received_time": m.received_time,
+                    }
+                )
+
+        return {
+            "ok": True,
+            "folder_path": folder_path,
+            "download_dir": os.path.abspath(download_dir),
+            "downloaded_count": len(downloaded),
+            "skipped_count": len(skipped),
+            "downloaded": downloaded,
+            "skipped": skipped,
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "trace": traceback.format_exc()}
+
+
+@mcp.tool()
+def list_top_folders() -> Dict[str, Any]:
+    """List available Outlook mailbox roots and their immediate child folders."""
+    try:
+        namespace, _ = _get_outlook_namespace()
+        stores = namespace.Folders
+        data = []
+        for i in range(1, stores.Count + 1):
+            root = stores.Item(i)
+            children = []
+            for j in range(1, root.Folders.Count + 1):
+                children.append(_safe_str(root.Folders.Item(j).Name))
+            data.append({"mailbox": _safe_str(root.Name), "children": children})
+        return {"ok": True, "mailboxes": data}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "trace": traceback.format_exc()}
+
+
+if __name__ == "__main__":
+    mcp.run()
