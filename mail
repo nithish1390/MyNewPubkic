@@ -1,0 +1,100 @@
+import os
+import re
+import json
+import traceback
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import win32com.client  # pywin32
+
+try:
+    from mcp.server.fastmcp import FastMCP
+except Exception as exc:  # pragma: no cover
+    raise RuntimeError(
+        "Could not import FastMCP from 'mcp'. Install dependencies from requirements.txt"
+    ) from exc
+
+
+mcp = FastMCP("outlook-mail-mcp")
+
+
+@dataclass
+class MailMatch:
+    entry_id: str
+    subject: str
+    sender_name: str
+    sender_email: str
+    received_time: str
+    folder_path: str
+    conversation_id: str
+
+
+def _safe_str(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _get_outlook_namespace():
+    outlook = win32com.client.Dispatch("Outlook.Application")
+    return outlook.GetNamespace("MAPI"), outlook
+
+
+def _normalize(s: str) -> str:
+    return _safe_str(s).strip().lower()
+
+
+def _resolve_folder(namespace, folder_path: str):
+    """
+    Resolve folder by path like:
+    - "Inbox"
+    - "Inbox/Finance"
+    - "Mailbox - John Doe/Inbox/Finance"
+    """
+    folder_path = folder_path.strip().strip("/")
+    if not folder_path:
+        raise ValueError("folder_path cannot be empty")
+
+    parts = [p.strip() for p in folder_path.split("/") if p.strip()]
+    if not parts:
+        raise ValueError("folder_path is invalid")
+
+    stores = namespace.Folders
+
+    # Case 1: full path starts with mailbox root
+    for i in range(1, stores.Count + 1):
+        root = stores.Item(i)
+        if _normalize(root.Name) == _normalize(parts[0]):
+            folder = root
+            for part in parts[1:]:
+                folder = _child_folder(folder, part)
+            return folder
+
+    # Case 2: short path. Find first mailbox containing top-level folder
+    for i in range(1, stores.Count + 1):
+        root = stores.Item(i)
+        try:
+            folder = _child_folder(root, parts[0])
+            for part in parts[1:]:
+                folder = _child_folder(folder, part)
+            return folder
+        except Exception:
+            continue
+
+    raise ValueError(
+        f"Could not resolve folder_path='{folder_path}'. Use a full path like 'Mailbox - Name/Inbox/SubFolder'."
+    )
+
+
+def _child_folder(parent, name: str):
+    for i in range(1, parent.Folders.Count + 1):
+        child = parent.Folders.Item(i)
+        if _normalize(child.Name) == _normalize(name):
+            return child
+    raise ValueError(f"Folder '{name}' not found under '{parent.Name}'")
+
+
+def _mail_to_summary(mail_item, folder_path: str) -> MailMatch:
+    sender_email = ""
+    try:
